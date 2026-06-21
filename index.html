@@ -3,22 +3,75 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>grading-helper</title>
+  <title>Grading Helper</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="card">
-    <header>
-      <h1>grading-helper</h1>
-      <p class="sub">Scaffold ready &mdash; let's build it.</p>
-    </header>
+  <header class="topbar">
+    <h1>Grading Helper</h1>
+    <p class="tagline">Grade the whole class at once &mdash; see the data as you go.</p>
+  </header>
 
-    <div id="status" class="status" role="status" aria-live="polite"></div>
+  <main>
+    <!-- Setup / controls -->
+    <section class="panel setup">
+      <div class="setup-row">
+        <div class="field grow">
+          <label for="classList">Class list <small>(one student name per line)</small></label>
+          <textarea id="classList" rows="5" spellcheck="false"
+            placeholder="Ada Lovelace&#10;Grace Hopper&#10;Katherine Johnson&#10;Alan Turing"></textarea>
+        </div>
+
+        <div class="setup-side">
+          <div class="field">
+            <label for="numQuestions"># of questions</label>
+            <input id="numQuestions" type="number" min="1" max="100" value="10" />
+          </div>
+          <div class="field">
+            <label for="assignmentName">Assignment</label>
+            <input id="assignmentName" type="text" value="Quiz 1" />
+          </div>
+          <button id="buildBtn" class="btn primary">Build Grid</button>
+          <button id="clearBtn" class="btn ghost">Clear</button>
+        </div>
+      </div>
+      <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
+        <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
+    </section>
+
+    <!-- Grading grid -->
+    <section class="panel grid-panel">
+      <div class="grid-scroll">
+        <table id="gradeTable" class="grade-table" hidden>
+          <thead id="gradeHead"></thead>
+          <tbody id="gradeBody"></tbody>
+          <tfoot id="gradeFoot"></tfoot>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state">
+        Paste a class list and click <strong>Build Grid</strong> to begin.
+      </div>
+    </section>
+
+    <!-- Live analysis -->
+    <section class="panel analysis" id="analysisPanel" hidden>
+      <h2>Live Analysis</h2>
+      <div class="stats" id="statCards"></div>
+
+      <div class="analysis-cols">
+        <div class="analysis-box">
+          <h3>Hardest questions</h3>
+          <ol id="hardestList" class="mini-list"></ol>
+        </div>
+        <div class="analysis-box">
+          <h3>Students needing attention</h3>
+          <ol id="strugglingList" class="mini-list"></ol>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <footer class="foot">
-    grading-helper
-  </footer>
+  <footer class="foot">Grading Helper &middot; runs entirely in your browser</footer>
 
   <script src="config.js"></script>
   <script src="app.js"></script>

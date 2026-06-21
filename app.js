@@ -19,6 +19,7 @@
       "classList", "numQuestions", "assignmentName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "statCards", "hardestList", "strugglingList",
+      "scorePie", "pieLegend",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     els.buildBtn.addEventListener("click", buildGrid);
@@ -179,6 +180,9 @@
       card(fullyDone + "/" + students.length, "Fully graded"),
     ].join("");
 
+    // Score-distribution pie (only students who participated, attempted > 0)
+    renderScorePie(perStudent.filter((s) => s.attempted > 0));
+
     // Hardest questions (lowest % correct among attempted)
     const qStats = [];
     for (let q = 0; q < numQuestions; q++) {
@@ -199,6 +203,63 @@
     els.strugglingList.innerHTML =
       ranked.slice(0, 5).map((s) => `<li>${escapeHtml(s.name)} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`).join("") ||
       '<li class="meta">No students graded yet.</li>';
+  }
+
+  // --- score-distribution pie chart (pure SVG, no dependencies) ---
+  function renderScorePie(graded) {
+    let high = 0, mid = 0, low = 0;
+    graded.forEach((s) => {
+      if (s.pct >= 70) high++;
+      else if (s.pct >= 50) mid++;
+      else low++;
+    });
+
+    const buckets = [
+      { label: "Passing", range: "70% and up", count: high, color: "#1f9d55" },
+      { label: "At risk", range: "50–69%", count: mid, color: "#e0a400" },
+      { label: "Needs help", range: "below 50%", count: low, color: "#d83a3a" },
+    ];
+    const total = high + mid + low;
+
+    // Legend
+    els.pieLegend.innerHTML = buckets
+      .map(
+        (b) =>
+          `<li><span class="swatch" style="background:${b.color}"></span>` +
+          `<span>${b.label} <span class="lg-range">(${b.range})</span></span>` +
+          `<span class="lg-count">${b.count}</span></li>`
+      )
+      .join("");
+
+    // Pie
+    const cx = 60, cy = 60, r = 54;
+    if (total === 0) {
+      els.scorePie.innerHTML =
+        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#eef1f6"/>` +
+        `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10" fill="#9aa3b2">no data</text>`;
+      return;
+    }
+
+    const slices = buckets.filter((b) => b.count > 0);
+    if (slices.length === 1) {
+      els.scorePie.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}"/>`;
+      return;
+    }
+
+    let angle = -Math.PI / 2; // start at top
+    let svg = "";
+    slices.forEach((b) => {
+      const sweep = (b.count / total) * Math.PI * 2;
+      const end = angle + sweep;
+      const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+      const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+      const large = sweep > Math.PI ? 1 : 0;
+      svg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} ` +
+        `A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" ` +
+        `fill="${b.color}"><title>${b.label}: ${b.count}</title></path>`;
+      angle = end;
+    });
+    els.scorePie.innerHTML = svg;
   }
 
   function card(num, lbl) {

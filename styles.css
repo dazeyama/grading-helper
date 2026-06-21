@@ -159,6 +159,26 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 .stat-card .num { font-size: 1.5rem; font-weight: 700; }
 .stat-card .lbl { font-size: 0.8rem; color: var(--muted); }
 
+/* pie chart */
+.chart-row {
+  display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap;
+  margin-top: 1.1rem; padding: 1rem; background: #f7f9fc;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.pie-wrap { flex: 0 0 auto; }
+.pie { width: 150px; height: 150px; display: block; }
+.pie path, .pie circle { transition: opacity 0.12s; }
+.pie-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 200px; }
+.pie-legend li {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.25rem 0; font-size: 0.9rem;
+}
+.pie-legend .swatch {
+  width: 14px; height: 14px; border-radius: 3px; flex: 0 0 auto;
+}
+.pie-legend .lg-count { font-weight: 700; margin-left: auto; font-variant-numeric: tabular-nums; }
+.pie-legend .lg-range { color: var(--muted); font-size: 0.82rem; }
+
 .analysis-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
 .analysis-box h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
 .mini-list { margin: 0; padding-left: 1.2rem; color: var(--ink); font-size: 0.9rem; }

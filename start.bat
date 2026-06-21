@@ -6,7 +6,7 @@ echo Starting Grading Helper on http://localhost:8090 ...
 REM Free the port first in case a previous server is still running.
 call "%~dp0stop.bat" >nul 2>&1
 
-start "grading-helper" python -m http.server 8090 --directory "%~dp0"
+start "grading-helper" python -m http.server 8090
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:8090"
 echo.

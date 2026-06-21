@@ -50,6 +50,7 @@
     students = names.map((name) => ({
       name,
       marks: new Array(numQuestions).fill("none"),
+      done: false,
     }));
 
     renderHead();
@@ -75,7 +76,7 @@
     for (let q = 0; q < numQuestions; q++) {
       html += `<th class="q-col">Q${q + 1}</th>`;
     }
-    html += '<th class="score-col">Score</th></tr>';
+    html += '<th class="score-col">Score</th><th class="done-col">Done</th></tr>';
     els.gradeHead.innerHTML = html;
   }
 
@@ -105,6 +106,16 @@
       scoreTd.innerHTML = '<span class="score-pill">—</span>';
       tr.appendChild(scoreTd);
 
+      const doneTd = document.createElement("td");
+      doneTd.className = "done-col";
+      const doneBtn = document.createElement("button");
+      doneBtn.className = "done-btn";
+      doneBtn.type = "button";
+      doneBtn.addEventListener("click", () => toggleDone(r));
+      doneTd.appendChild(doneBtn);
+      tr.appendChild(doneTd);
+
+      applyDoneStyling(tr, stu.done);
       frag.appendChild(tr);
     });
     els.gradeBody.innerHTML = "";
@@ -119,9 +130,32 @@
     students[r].marks[q] = next;
     btn.className = "cell state-" + next;
     btn.textContent = GLYPH[next];
+
+    // Editing a graded row brings it back to active (no longer "done").
+    if (students[r].done) {
+      students[r].done = false;
+      applyDoneStyling(els.gradeBody.children[r], false);
+    }
+
     refreshScores();
     renderFoot();
     updateAnalysis();
+  }
+
+  function toggleDone(r) {
+    students[r].done = !students[r].done;
+    applyDoneStyling(els.gradeBody.children[r], students[r].done);
+    updateAnalysis();
+  }
+
+  function applyDoneStyling(tr, done) {
+    tr.classList.toggle("row-done", done);
+    const btn = tr.querySelector(".done-btn");
+    if (btn) {
+      btn.classList.toggle("is-done", done);
+      btn.textContent = done ? "Done ✓" : "Done";
+      btn.title = done ? "Marked fully graded — click to reopen" : "Mark this student fully graded";
+    }
   }
 
   // Score = correct / (attempted), where attempted = correct + wrong.
@@ -157,7 +191,7 @@
       const pct = attempted ? Math.round((correct / attempted) * 100) : null;
       html += `<td>${pct === null ? "—" : pct + "%"}</td>`;
     }
-    html += "<td></td></tr>";
+    html += "<td></td><td></td></tr>";
     els.gradeFoot.innerHTML = html;
   }
 
@@ -168,7 +202,7 @@
       const s = studentStats(stu);
       totalCorrect += s.correct;
       totalAttempted += s.attempted;
-      if (s.attempted === numQuestions) fullyDone++;
+      if (stu.done) fullyDone++;
       return { name: stu.name, ...s };
     });
     const classPct = totalAttempted ? Math.round((totalCorrect / totalAttempted) * 100) : 0;

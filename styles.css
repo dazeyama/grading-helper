@@ -123,7 +123,26 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .grade-table thead th.name-col { z-index: 3; background: #f7f9fc; }
 
 .score-col { min-width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+.done-col { min-width: 84px; text-align: center; padding: 0 0.4rem !important; }
 tbody tr:hover .name-col { background: #f7f9fc; }
+
+/* Done toggle button */
+.done-btn {
+  font: inherit; font-size: 0.8rem; font-weight: 600;
+  padding: 0.28rem 0.6rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: #fff; color: var(--muted);
+  white-space: nowrap;
+}
+.done-btn:hover { background: #f7f9fc; }
+.done-btn.is-done {
+  background: var(--correct-bg); border-color: var(--correct); color: var(--correct);
+}
+
+/* Fully-graded row: slightly greyed, but Done button stays legible */
+tbody tr.row-done td { background: var(--none-bg); }
+tbody tr.row-done .name-col { background: var(--none-bg); color: var(--muted); }
+tbody tr.row-done .cell { opacity: 0.4; }
+tbody tr.row-done .score-pill { opacity: 0.5; }
 
 /* tri-state cell */
 .cell {

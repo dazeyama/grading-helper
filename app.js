@@ -210,14 +210,14 @@
     let high = 0, mid = 0, low = 0;
     graded.forEach((s) => {
       if (s.pct >= 70) high++;
-      else if (s.pct >= 50) mid++;
+      else if (s.pct >= 51) mid++;
       else low++;
     });
 
     const buckets = [
       { label: "Passing", range: "70% and up", count: high, color: "#1f9d55" },
-      { label: "At risk", range: "50–69%", count: mid, color: "#e0a400" },
-      { label: "Needs help", range: "below 50%", count: low, color: "#d83a3a" },
+      { label: "At risk", range: "51–69%", count: mid, color: "#e0a400" },
+      { label: "Needs help", range: "50% and below", count: low, color: "#d83a3a" },
     ];
     const total = high + mid + low;
 

@@ -25,7 +25,7 @@
       "saveBtn", "loadBtn", "loadFile", "clearMarksBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "analysisTitle", "detailsPanel", "detailsHeader",
-      "statCards", "insightStrip",
+      "printPdfBtn", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
@@ -57,6 +57,7 @@
     // Pin / unpin + collapsible sheet
     els.sheetHeader.addEventListener("click", toggleSheet);
     els.detailsHeader.addEventListener("click", toggleDetails);
+    els.printPdfBtn.addEventListener("click", printPdf);
     els.pinnedName.addEventListener("click", unpinStudent);
     els.pinStudentBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -947,5 +948,160 @@
     syncTestTitle();
     updateAnalysis();
     switchTab("grade");
+  }
+
+  // -------------------------------------------------------------------------
+  // Print PDF — one-page portrait report of the Live Analysis page
+  // -------------------------------------------------------------------------
+  function hexToRgb(hex) {
+    const m = hex.replace("#", "");
+    return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
+  }
+
+  function dateStr() {
+    const d = new Date();
+    const pad = (x) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  // Rasterize an inline <svg> to a PNG data URL for embedding in the PDF.
+  function svgToPng(svgEl, scale) {
+    return new Promise((resolve, reject) => {
+      const vb = svgEl.viewBox.baseVal;
+      const w = vb && vb.width ? vb.width : svgEl.clientWidth || 300;
+      const h = vb && vb.height ? vb.height : svgEl.clientHeight || 200;
+      const clone = svgEl.cloneNode(true);
+      clone.setAttribute("width", w);
+      clone.setAttribute("height", h);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const xml = new XMLSerializer().serializeToString(clone);
+      const src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = w * scale;
+        canvas.height = h * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({ url: canvas.toDataURL("image/png"), w, h });
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function printPdf() {
+    const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDFCtor) { alert("PDF library failed to load."); return; }
+
+    const btn = els.printPdfBtn;
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    try {
+      const pie = await svgToPng(els.scorePie, 3);
+      const bar = await svgToPng(els.questionBars, 3);
+
+      const doc = new jsPDFCtor({ unit: "pt", format: "letter", orientation: "portrait" });
+      const PW = 612, M = 40, CW = PW - M * 2;
+      const INK = [31, 39, 51], MUT = [120, 120, 120];
+      let y = M;
+
+      // Header
+      doc.setFont("helvetica", "bold").setFontSize(9).setTextColor(59, 108, 255);
+      doc.text("LIVE ANALYSIS", M, y + 4);
+      doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...MUT);
+      doc.text("Printed " + dateStr(), PW - M, y + 4, { align: "right" });
+      y += 24;
+      doc.setFont("helvetica", "bold").setFontSize(22).setTextColor(...INK);
+      doc.text(els.analysisTitle.textContent || "Untitled test", M, y);
+      y += 12;
+      doc.setDrawColor(226, 231, 239).line(M, y, PW - M, y);
+      y += 20;
+
+      // Stat cards (3 per row)
+      const cards = Array.from(els.statCards.children).map((c) => ({
+        num: c.querySelector(".num").textContent,
+        lbl: c.querySelector(".lbl").textContent,
+      }));
+      const colW = CW / 3;
+      cards.forEach((c, i) => {
+        const cx = M + (i % 3) * colW;
+        const cy = y + Math.floor(i / 3) * 40;
+        doc.setFont("helvetica", "bold").setFontSize(15).setTextColor(...INK);
+        doc.text(c.num, cx, cy + 12);
+        doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...MUT);
+        doc.text(c.lbl, cx, cy + 24);
+      });
+      y += Math.ceil(cards.length / 3) * 40 + 10;
+
+      // Charts: pie left, bar right
+      const chartTop = y;
+      const pieW = 150;
+      const pieH = pieW * (pie.h / pie.w);
+      doc.addImage(pie.url, "PNG", M, chartTop, pieW, pieH);
+      const barX = M + pieW + 20;
+      const barW = CW - pieW - 20;
+      const barH = barW * (bar.h / bar.w);
+      doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(...INK);
+      doc.text("% correct by question", barX, chartTop + 8);
+      doc.addImage(bar.url, "PNG", barX, chartTop + 14, barW, barH);
+
+      // Pie legend under the pie
+      let ly = chartTop + pieH + 16;
+      const legendColors = ["#1f9d55", "#e0a400", "#d83a3a"];
+      Array.from(els.pieLegend.children).forEach((li, i) => {
+        const lbl = li.children[1] ? li.children[1].textContent : li.textContent;
+        const cnt = li.querySelector(".lg-count") ? li.querySelector(".lg-count").textContent : "";
+        const rgb = hexToRgb(legendColors[i] || "#999999");
+        doc.setFillColor(...rgb).rect(M, ly - 7, 9, 9, "F");
+        doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...INK);
+        doc.text(`${lbl}  —  ${cnt}`, M + 14, ly);
+        ly += 15;
+      });
+
+      y = Math.max(ly, chartTop + 14 + barH) + 16;
+
+      // Section helper
+      const listText = (el) => Array.from(el.children).map((n) => n.textContent.replace(/\s+/g, " ").trim());
+      const section = (x, yy, w, title, lines) => {
+        doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(...INK);
+        doc.text(title, x, yy);
+        yy += 14;
+        doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(60, 60, 60);
+        (lines.length ? lines : ["—"]).forEach((line) => {
+          const wrapped = doc.splitTextToSize(line, w);
+          doc.text(wrapped, x, yy);
+          yy += wrapped.length * 11 + 2;
+        });
+        return yy;
+      };
+
+      // Hardest / Easiest
+      const col2 = (CW - 20) / 2;
+      let yL = section(M, y, col2, "Hardest questions", listText(els.hardestList));
+      let yR = section(M + col2 + 20, y, col2, "Easiest questions", listText(els.easiestList));
+      y = Math.max(yL, yR) + 12;
+
+      // Highlights (full width)
+      y = section(M, y, CW, "Highlights", listText(els.insightStrip)) + 12;
+
+      // Top performers / Needs attention
+      yL = section(M, y, col2, "Top performers", listText(els.topList));
+      yR = section(M + col2 + 20, y, col2, "Students needing attention", listText(els.strugglingList));
+      y = Math.max(yL, yR);
+
+      const base = (els.testName.value || "grading-export").trim().replace(/[\\/:*?"<>|]/g, "-");
+      const fname = `${base || "grading-export"} ${dateStr()} analysis.pdf`;
+      doc.save(fname);
+      try { window.open(doc.output("bloburl"), "_blank"); } catch (e) { /* popup blocked */ }
+    } catch (e) {
+      alert("Could not generate the PDF: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
   }
 })();

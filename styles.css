@@ -236,6 +236,8 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 
 /* ---------- analysis ---------- */
 .analysis-hero { border-color: var(--accent); }
+.analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.print-btn { white-space: nowrap; padding: 0.6rem 1.1rem; font-size: 0.95rem; }
 
 /* Collapsible details panel (hide to conceal student names) */
 .analysis-details { padding: 0; }

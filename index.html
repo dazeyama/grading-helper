@@ -97,8 +97,13 @@
     </div>
     <!-- Live analysis — top "hero" panel (always visible) -->
     <section class="panel analysis analysis-hero" id="analysisPanel" hidden>
-      <p class="analysis-kicker">Live Analysis</p>
-      <h1 class="analysis-title" id="analysisTitle">Quiz 1</h1>
+      <div class="analysis-head">
+        <div>
+          <p class="analysis-kicker">Live Analysis</p>
+          <h1 class="analysis-title" id="analysisTitle">Quiz 1</h1>
+        </div>
+        <button id="printPdfBtn" class="btn primary print-btn" data-tip="Save a one-page PDF report of this analysis">Print PDF</button>
+      </div>
 
       <div class="chart-row charts-hero">
         <div class="chart-half pie-half">
@@ -164,6 +169,7 @@
     <button id="pinStudentBtn" class="name-menu-item" type="button">Pin Student</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

@@ -28,7 +28,6 @@
           <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
         </label>
         <div class="save-load">
-          <button id="saveBtn" class="btn ghost" title="Download this test as a .csv file">Save CSV</button>
           <button id="loadBtn" class="btn ghost" title="Load a test from a .csv file">Load CSV</button>
           <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
         </div>
@@ -68,7 +67,10 @@
     <div class="grade-toolbar">
       <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
         <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
-      <button id="clearMarksBtn" class="btn ghost" data-tip="Reset every mark and Done flag (keeps the roster and questions)">Clear</button>
+      <div class="toolbar-actions">
+        <button id="saveBtn" class="btn ghost" data-tip="Download this test as a .csv file">Save CSV</button>
+        <button id="clearMarksBtn" class="btn ghost" data-tip="Reset every mark and Done flag (keeps the roster and questions)">Clear</button>
+      </div>
     </div>
 
     <!-- Grading grid -->

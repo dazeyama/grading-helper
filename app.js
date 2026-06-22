@@ -409,10 +409,15 @@
     if (!t) return;
     const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 1));
     if (nq === numQuestions) return;
-    if (nq < numQuestions &&
-        !window.confirm(`Reduce to ${nq} questions? Any marks for questions ${nq + 1}–${numQuestions} will be removed.`)) {
-      els.numQuestions.value = numQuestions;
-      return;
+    if (nq < numQuestions) {
+      // Only warn if shrinking would actually discard marked (non-blank) cells.
+      const losesData = students.some((s) =>
+        s.marks.slice(nq).some((m) => m === "correct" || m === "wrong"));
+      if (losesData &&
+          !window.confirm(`Reduce to ${nq} questions? Existing marks for questions ${nq + 1}–${numQuestions} will be removed.`)) {
+        els.numQuestions.value = numQuestions;
+        return;
+      }
     }
     numQuestions = nq;
     t.numQuestions = nq;

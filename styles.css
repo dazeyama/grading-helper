@@ -276,14 +276,15 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
   padding: 1rem; background: #f7f9fc;
   border: 1px solid var(--border); border-radius: 10px;
 }
-.bar-half { align-items: stretch; }
+.bar-half { flex-direction: column; align-items: stretch; }
 .pie-wrap { flex: 0 0 auto; }
 
-/* bar chart */
-.bar-wrap { flex: 1 1 60%; min-width: 0; }
+/* bar chart — graph on top (full width), Hardest/Easiest side-by-side below */
+.bar-wrap { width: 100%; min-width: 0; }
 .bar-wrap h3 { margin: 0 0 0.4rem; font-size: 0.9rem; }
 .bar-chart { width: 100%; height: auto; display: block; }
-.qextremes { flex: 1 1 34%; display: flex; flex-direction: column; gap: 0.7rem; justify-content: center; }
+.qextremes { display: flex; flex-direction: row; gap: 1.4rem; }
+.qextremes .qx-box { flex: 1 1 0; min-width: 0; }
 .qx-box h4 { margin: 0 0 0.25rem; font-size: 0.85rem; }
 .qx-box .mini-list { padding-left: 1.1rem; font-size: 0.85rem; }
 .pie { width: 150px; height: 150px; display: block; }

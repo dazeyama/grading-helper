@@ -292,6 +292,7 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
   padding: 0.8rem 0.9rem;
 }
 .stat-card .num { font-size: 1.5rem; font-weight: 700; }
+.stat-card .num-sub { font-weight: 400; font-size: 0.7em; color: var(--muted); }
 .stat-card .lbl { font-size: 0.8rem; color: var(--muted); }
 
 /* charts row, split into two halves */

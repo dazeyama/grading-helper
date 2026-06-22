@@ -131,10 +131,13 @@
     btn.className = "cell state-" + next;
     btn.textContent = GLYPH[next];
 
-    // Editing a graded row brings it back to active (no longer "done").
-    if (students[r].done) {
-      students[r].done = false;
-      applyDoneStyling(els.gradeBody.children[r], false);
+    // Auto-mark Done when every question is filled (check or X); reopen if a
+    // cell is cleared back to blank. This also "comes back" when a graded row
+    // is edited and no longer complete.
+    const allMarked = students[r].marks.every((m) => m !== "none");
+    if (students[r].done !== allMarked) {
+      students[r].done = allMarked;
+      applyDoneStyling(els.gradeBody.children[r], allMarked);
     }
 
     refreshScores();

@@ -186,8 +186,9 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 /* ---------- analysis ---------- */
 .analysis h2 { margin: 0 0 0.8rem; font-size: 1.1rem; }
 
-/* auto-generated insight highlights */
-.insights { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+/* Highlights section */
+.section-title { margin: 1.3rem 0 0; font-size: 0.95rem; }
+.insights { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.5rem; }
 .insight {
   flex: 1 1 240px; padding: 0.55rem 0.8rem; border-radius: 8px;
   font-size: 0.88rem; background: #f7f9fc;

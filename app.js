@@ -339,19 +339,19 @@
 
   // --- score-distribution pie chart (pure SVG, no dependencies) ---
   function renderScorePie(graded) {
-    let high = 0, mid = 0, low = 0;
+    const high = [], mid = [], low = [];
     graded.forEach((s) => {
-      if (s.pct >= 70) high++;
-      else if (s.pct >= 51) mid++;
-      else low++;
+      if (s.pct >= 70) high.push(s.name);
+      else if (s.pct >= 51) mid.push(s.name);
+      else low.push(s.name);
     });
 
     const buckets = [
-      { label: "Meets", range: "70% and up", count: high, color: "#1f9d55" },
-      { label: "Nearly meets", range: "51–69%", count: mid, color: "#e0a400" },
-      { label: "Does not meet", range: "50% and below", count: low, color: "#d83a3a" },
+      { label: "Meets", range: "70% and up", names: high, count: high.length, color: "#1f9d55" },
+      { label: "Nearly meets", range: "51–69%", names: mid, count: mid.length, color: "#e0a400" },
+      { label: "Does not meet", range: "50% and below", names: low, count: low.length, color: "#d83a3a" },
     ];
-    const total = high + mid + low;
+    const total = high.length + mid.length + low.length;
 
     // Legend — show each band's live share of graded students (bold)
     els.pieLegend.innerHTML = buckets
@@ -372,9 +372,14 @@
       return;
     }
 
+    // Tooltip lists the students in each band, one per line.
+    const sliceTitle = (b) => escapeHtml(`${b.label}:\n` + b.names.join("\n"));
+
     const slices = buckets.filter((b) => b.count > 0);
     if (slices.length === 1) {
-      els.scorePie.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}"/>`;
+      els.scorePie.innerHTML =
+        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}">` +
+        `<title>${sliceTitle(slices[0])}</title></circle>`;
       return;
     }
 
@@ -388,7 +393,7 @@
       const large = sweep > Math.PI ? 1 : 0;
       svg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} ` +
         `A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" ` +
-        `fill="${b.color}"><title>${b.label}: ${b.count}</title></path>`;
+        `fill="${b.color}"><title>${sliceTitle(b)}</title></path>`;
       angle = end;
     });
     els.scorePie.innerHTML = svg;

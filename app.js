@@ -43,7 +43,7 @@
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
       "sheetToggle", "nameMenu", "pinStudentBtn",
-      "setupTestSelect", "gradeTestSelect", "analysisTestSelect",
+      "setupTestSelect", "gradeTestSelect", "analysisTestSelect", "deleteTestBtn",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
@@ -61,6 +61,7 @@
     els.setupTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.gradeTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.analysisTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
+    els.deleteTestBtn.addEventListener("click", deleteTest);
 
     // Save / load (CSV, one test per file)
     els.saveBtn.addEventListener("click", saveCsv);
@@ -299,14 +300,43 @@
     renderTestOptions();
   }
 
+  // Append "(n)" when several tests share the same name, to tell them apart.
+  function disambiguatedName(t) {
+    const nm = t.name || "Untitled";
+    const same = tests.filter((x) => (x.name || "Untitled") === nm);
+    return same.length <= 1 ? nm : `${nm} (${same.indexOf(t) + 1})`;
+  }
+
   function renderTestOptions() {
     const opts = tests
-      .map((t) => `<option value="${t.id}">${escapeHtml(t.name || "Untitled")}</option>`)
+      .map((t) => `<option value="${t.id}">${escapeHtml(disambiguatedName(t))}</option>`)
       .join("");
     [els.setupTestSelect, els.gradeTestSelect, els.analysisTestSelect].forEach((sel) => {
       sel.innerHTML = opts;
       sel.value = currentTestId;
     });
+  }
+
+  function deleteTest() {
+    const t = getCurrentTest();
+    if (!t) return;
+    if (!window.confirm(`Delete the test "${disambiguatedName(t)}"? This permanently removes its roster and all grading data.`)) return;
+
+    const idx = tests.findIndex((x) => x.id === t.id);
+    tests.splice(idx, 1);
+
+    if (tests.length === 0) {
+      // Always keep at least one test — create a fresh empty one.
+      const blank = makeTest("New Test", 10, []);
+      tests = [blank];
+      currentTestId = blank.id;
+      loadTestIntoGlobals(blank);
+    } else {
+      const next = tests[Math.min(idx, tests.length - 1)];
+      currentTestId = next.id;
+      loadTestIntoGlobals(next);
+    }
+    persist();
   }
 
   function switchTest(id) {

@@ -283,7 +283,9 @@
       card(numQuestions, "Questions"),
       card(pc(meanPct), "Class average", "Mean of student scores (graded only)"),
       card(n ? lowest + "–" + highest + "%" : "—", "Range", "Lowest to highest score"),
-      card(n ? `${meetsCount}/${n}` : "—", "Meet (≥70%)", "Students at or above 70%"),
+      card(n ? `${meetsCount}/${n}` : "—",
+        n ? `Meet (${Math.round((meetsCount / n) * 100)}%)` : "Meet",
+        "Students at or above 70%"),
       card(`${fullyDone}/${students.length}`, "Graded", "Rows marked Done"),
     ].join("");
 

@@ -21,8 +21,10 @@
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
-      "scorePie", "pieLegend", "questionBars", "easiestList",
+      "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
     ].forEach((id) => (els[id] = document.getElementById(id)));
+
+    initTooltip();
 
     els.buildBtn.addEventListener("click", buildGrid);
     els.clearBtn.addEventListener("click", clearAll);
@@ -49,6 +51,47 @@
     ].join("\n");
     buildGrid();
   });
+
+  // -------------------------------------------------------------------------
+  // Custom tooltip — a single floating element driven by [data-tip] attributes.
+  // Works for HTML and SVG targets; supports multi-line text via "\n".
+  // -------------------------------------------------------------------------
+  function initTooltip() {
+    const tip = els.tooltip;
+
+    const place = (x, y) => {
+      const pad = 14;
+      const r = tip.getBoundingClientRect();
+      let left = x + pad, top = y + pad;
+      if (left + r.width > window.innerWidth - 8) left = x - r.width - pad;
+      if (top + r.height > window.innerHeight - 8) top = y - r.height - pad;
+      tip.style.left = Math.max(8, left) + "px";
+      tip.style.top = Math.max(8, top) + "px";
+    };
+    let current = null;
+    const hide = () => { tip.classList.remove("show"); tip.hidden = true; current = null; };
+    const targetOf = (e) =>
+      e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
+
+    // Position-driven so it never flickers moving between a card and its children.
+    document.addEventListener("mousemove", (e) => {
+      const el = targetOf(e);
+      const text = el && el.getAttribute("data-tip");
+      if (text) {
+        if (el !== current) {
+          tip.textContent = text;
+          tip.hidden = false;
+          tip.classList.add("show");
+          current = el;
+        }
+        place(e.clientX, e.clientY);
+      } else if (current) {
+        hide();
+      }
+    });
+    // Hide if the user scrolls the page while a tip is open.
+    window.addEventListener("scroll", hide, true);
+  }
 
   function syncTestTitle() {
     const name = els.testName.value.trim();
@@ -129,7 +172,6 @@
         const btn = document.createElement("button");
         btn.className = "cell state-" + stu.marks[q];
         btn.textContent = GLYPH[stu.marks[q]];
-        btn.title = "Click to mark";
         btn.addEventListener("click", () => cycleCell(r, q, btn));
         td.appendChild(btn);
         tr.appendChild(td);
@@ -191,7 +233,7 @@
     if (btn) {
       btn.classList.toggle("is-done", done);
       btn.textContent = done ? "Done ✓" : "Done";
-      btn.title = done ? "Marked fully graded — click to reopen" : "Mark this student fully graded";
+      btn.setAttribute("data-tip", done ? "Marked fully graded — click to reopen" : "Mark this student fully graded");
     }
   }
 
@@ -213,7 +255,7 @@
       const { correct, attempted, pct } = studentStats(stu);
       const pill = rows[r].querySelector(".score-pill");
       pill.textContent = attempted ? `${pct}%` : "—";
-      pill.title = `${correct}/${attempted} correct`;
+      pill.setAttribute("data-tip", `${correct}/${attempted} correct`);
     });
   }
 
@@ -333,7 +375,7 @@
         tip: `Didn't answer Q${mostSkipped.q}: ${joinNames(skipNames)}` });
     }
     els.insightStrip.innerHTML = ins.length
-      ? ins.map((i) => `<div class="insight tone-${i.tone}" title="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
+      ? ins.map((i) => `<div class="insight tone-${i.tone}" data-tip="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
       : '<div class="insight tone-info">Start grading to see insights.</div>';
 
     // ---- charts ----
@@ -379,7 +421,7 @@
     els.pieLegend.innerHTML = buckets
       .map((b) => {
         const pct = total ? Math.round((b.count / total) * 100) : 0;
-        return `<li title="${b.range}"><span class="swatch" style="background:${b.color}"></span>` +
+        return `<li data-tip="${b.range}"><span class="swatch" style="background:${b.color}"></span>` +
           `<span>${b.label} (<strong>${pct}%</strong>)</span>` +
           `<span class="lg-count">${b.count}</span></li>`;
       })
@@ -400,8 +442,7 @@
     const slices = buckets.filter((b) => b.count > 0);
     if (slices.length === 1) {
       els.scorePie.innerHTML =
-        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}">` +
-        `<title>${sliceTitle(slices[0])}</title></circle>`;
+        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}" data-tip="${sliceTitle(slices[0])}"/>`;
       return;
     }
 
@@ -415,7 +456,7 @@
       const large = sweep > Math.PI ? 1 : 0;
       svg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} ` +
         `A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" ` +
-        `fill="${b.color}"><title>${sliceTitle(b)}</title></path>`;
+        `fill="${b.color}" data-tip="${sliceTitle(b)}"></path>`;
       angle = end;
     });
     els.scorePie.innerHTML = svg;
@@ -463,8 +504,8 @@
         ? `Q${s.q}: ${s.pct}% (${s.correct}/${s.attempted})`
         : `Q${s.q}: not graded`;
       svg += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" ` +
-        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct)}">` +
-        `<title>${title}</title></rect>`;
+        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct)}" ` +
+        `data-tip="${escapeHtml(title)}"></rect>`;
       if (i % labelEvery === 0) {
         svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
           `font-size="8" fill="#6b7686">${s.q}</text>`;
@@ -479,7 +520,7 @@
   }
 
   function card(num, lbl, tip) {
-    const t = tip ? ` title="${tip}"` : "";
+    const t = tip ? ` data-tip="${escapeHtml(tip)}"` : "";
     return `<div class="stat-card"${t}><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
   }
 

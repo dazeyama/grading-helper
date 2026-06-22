@@ -290,28 +290,50 @@
     ].join("");
 
     // ---- insights strip (auto-generated highlights) ----
+    // Each highlight gets a tooltip naming the students (or questions) it refers to.
+    const joinNames = (arr) => (arr.length ? arr.join(", ") : "(none)");
+    const namesWhere = (pred) => students.filter(pred).map((s) => s.name);
+
     const ins = [];
-    ins.push({ tone: "info", text: `Grading ${donePct}% complete — ${fullyDone} of ${students.length} marked done.` });
+    {
+      const doneNames = namesWhere((s) => s.done);
+      const notDone = namesWhere((s) => !s.done);
+      ins.push({ tone: "info",
+        text: `Grading ${donePct}% complete — ${fullyDone} of ${students.length} marked done.`,
+        tip: `Done: ${joinNames(doneNames)}` + (notDone.length ? `\nNot done: ${joinNames(notDone)}` : "") });
+    }
     if (n) {
+      const meetsNames = gradedStudents.filter((s) => s.pct >= 70).map((s) => s.name);
+      const nearlyNames = gradedStudents.filter((s) => s.pct >= 51 && s.pct < 70).map((s) => s.name);
+      const notMeetNames = gradedStudents.filter((s) => s.pct <= 50).map((s) => s.name);
       ins.push({ tone: notMeetCount > meetsCount ? "warn" : "good",
-        text: `${meetsCount} meet, ${nearlyCount} nearly, ${notMeetCount} do not meet (of ${n} graded).` });
+        text: `${meetsCount} meet, ${nearlyCount} nearly, ${notMeetCount} do not meet (of ${n} graded).`,
+        tip: `Meets: ${joinNames(meetsNames)}\nNearly: ${joinNames(nearlyNames)}\nDoes not meet: ${joinNames(notMeetNames)}` });
     }
     if (gradedQs.length) {
       const worst = gradedQs.slice().sort((a, b) => a.pct - b.pct)[0];
+      const wrongNames = namesWhere((s) => s.marks[worst.q - 1] === "wrong");
       ins.push({ tone: worst.pct <= 50 ? "bad" : "info",
-        text: `Toughest question: Q${worst.q} at ${worst.pct}% correct.` });
-      const aced = gradedQs.filter((q) => q.pct === 100).length;
-      if (aced) ins.push({ tone: "good", text: `${aced} question${aced !== 1 ? "s" : ""} the whole class got right.` });
-      const allMissed = gradedQs.filter((q) => q.pct === 0).length;
-      if (allMissed) ins.push({ tone: "bad", text: `${allMissed} question${allMissed !== 1 ? "s" : ""} no one got right.` });
+        text: `Toughest question: Q${worst.q} at ${worst.pct}% correct.`,
+        tip: `Got Q${worst.q} wrong: ${joinNames(wrongNames)}` });
+      const acedQs = gradedQs.filter((q) => q.pct === 100);
+      if (acedQs.length) ins.push({ tone: "good",
+        text: `${acedQs.length} question${acedQs.length !== 1 ? "s" : ""} the whole class got right.`,
+        tip: `Everyone correct: ${acedQs.map((q) => "Q" + q.q).join(", ")}` });
+      const missedQs = gradedQs.filter((q) => q.pct === 0);
+      if (missedQs.length) ins.push({ tone: "bad",
+        text: `${missedQs.length} question${missedQs.length !== 1 ? "s" : ""} no one got right.`,
+        tip: `No one correct: ${missedQs.map((q) => "Q" + q.q).join(", ")}` });
     }
     if (blanks > 0) {
       const mostSkipped = perQuestion.slice().sort((a, b) => b.blanks - a.blanks)[0];
+      const skipNames = namesWhere((s) => s.marks[mostSkipped.q - 1] === "none");
       ins.push({ tone: "warn",
-        text: `${blanks} blank cell${blanks !== 1 ? "s" : ""}; most skipped is Q${mostSkipped.q} (${mostSkipped.blanks} unanswered).` });
+        text: `${blanks} blank cell${blanks !== 1 ? "s" : ""}; most skipped is Q${mostSkipped.q} (${mostSkipped.blanks} unanswered).`,
+        tip: `Didn't answer Q${mostSkipped.q}: ${joinNames(skipNames)}` });
     }
     els.insightStrip.innerHTML = ins.length
-      ? ins.map((i) => `<div class="insight tone-${i.tone}">${i.text}</div>`).join("")
+      ? ins.map((i) => `<div class="insight tone-${i.tone}" title="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
       : '<div class="insight tone-info">Start grading to see insights.</div>';
 
     // ---- charts ----

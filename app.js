@@ -676,10 +676,15 @@
     // Tooltip lists the students in each band, one per line.
     const sliceTitle = (b) => escapeHtml(`${b.label}:\n` + b.names.join("\n"));
 
+    const sliceLabel = (x, y, count, size) =>
+      `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" ` +
+      `font-size="${size}" font-weight="700" fill="#fff" pointer-events="none">${count}</text>`;
+
     const slices = buckets.filter((b) => b.count > 0);
     if (slices.length === 1) {
       els.scorePie.innerHTML =
-        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}" data-tip="${sliceTitle(slices[0])}"/>`;
+        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}" data-tip="${sliceTitle(slices[0])}"/>` +
+        sliceLabel(cx, cy, slices[0].count, 18);
       return;
     }
 
@@ -694,6 +699,9 @@
       svg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} ` +
         `A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" ` +
         `fill="${b.color}" data-tip="${sliceTitle(b)}"></path>`;
+      const mid = angle + sweep / 2;
+      const lr = r * 0.62;
+      svg += sliceLabel((cx + lr * Math.cos(mid)).toFixed(1), (cy + lr * Math.sin(mid)).toFixed(1), b.count, 14);
       angle = end;
     });
     els.scorePie.innerHTML = svg;
@@ -723,7 +731,7 @@
       svg += `<line x1="${m.left}" y1="${gy.toFixed(1)}" x2="${W - m.right}" y2="${gy.toFixed(1)}" ` +
         `stroke="#e2e7ef" stroke-width="1"/>`;
       svg += `<text x="${m.left - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end" ` +
-        `font-size="8" fill="#9aa3b2">${g}</text>`;
+        `font-size="8" fill="#1f2733">${g}</text>`;
     });
 
     // Bars
@@ -745,13 +753,13 @@
         `data-tip="${escapeHtml(title)}"></rect>`;
       if (i % labelEvery === 0) {
         svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
-          `font-size="8" fill="#6b7686">${s.q}</text>`;
+          `font-size="8" fill="#1f2733">${s.q}</text>`;
       }
     });
 
-    // Axes
-    svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="#aab2bf" stroke-width="1"/>`;
-    svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#aab2bf" stroke-width="1"/>`;
+    // Axes (black)
+    svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
+    svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
 
     els.questionBars.innerHTML = svg;
   }

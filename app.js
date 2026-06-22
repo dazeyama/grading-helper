@@ -18,13 +18,16 @@
     [
       "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
-      "analysisPanel", "analysisEmpty", "statCards", "insightStrip",
+      "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     els.buildBtn.addEventListener("click", buildGrid);
     els.clearBtn.addEventListener("click", clearAll);
+
+    // Keep the Analysis title in sync with the Test name field as it's typed.
+    els.testName.addEventListener("input", syncTestTitle);
 
     // Tab switching
     document.querySelectorAll(".tab").forEach((tab) => {
@@ -40,6 +43,11 @@
     ].join("\n");
     buildGrid();
   });
+
+  function syncTestTitle() {
+    const name = els.testName.value.trim();
+    els.analysisTitle.textContent = name || "Untitled test";
+  }
 
   function switchTab(name) {
     document.querySelectorAll(".tab").forEach((t) =>
@@ -76,6 +84,7 @@
     els.emptyState.hidden = true;
     els.analysisPanel.hidden = false;
     els.analysisEmpty.hidden = true;
+    syncTestTitle();
     updateAnalysis();
   }
 

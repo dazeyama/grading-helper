@@ -8,6 +8,7 @@
 
   const STATES = ["none", "correct", "wrong"];
   const GLYPH = { none: "", correct: "✓", wrong: "✗" };
+  const STORE_KEY = "gradingHelper.session.v1";
 
   let students = []; // [{ name, marks: [state,...] }]
   let numQuestions = 10;
@@ -29,8 +30,11 @@
     els.buildBtn.addEventListener("click", () => { buildGrid(); switchTab("grade"); });
     els.clearBtn.addEventListener("click", clearAll);
 
-    // Keep the Analysis title in sync with the Test name field as it's typed.
-    els.testName.addEventListener("input", syncTestTitle);
+    // Keep the Analysis title in sync with the Test name field as it's typed,
+    // and persist edits to the setup fields.
+    els.testName.addEventListener("input", () => { syncTestTitle(); persist(); });
+    els.classList.addEventListener("input", persist);
+    els.numQuestions.addEventListener("input", persist);
 
     // Save / load (CSV, one test per file)
     els.saveBtn.addEventListener("click", saveCsv);
@@ -42,14 +46,16 @@
       tab.addEventListener("click", () => switchTab(tab.dataset.tab));
     });
 
-    // Seed with sample data so the layout is visible immediately.
-    els.classList.value = [
-      "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
-      "Margaret Hamilton", "Charles Babbage", "Dorothy Vaughan", "Linus Torvalds",
-      "Hedy Lamarr", "Tim Berners-Lee", "Radia Perlman", "Dennis Ritchie",
-      "Barbara Liskov", "John von Neumann", "Annie Easley",
-    ].join("\n");
-    buildGrid();
+    // Resume the last session if one was cached; otherwise seed sample data.
+    if (!restoreSession()) {
+      els.classList.value = [
+        "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
+        "Margaret Hamilton", "Charles Babbage", "Dorothy Vaughan", "Linus Torvalds",
+        "Hedy Lamarr", "Tim Berners-Lee", "Radia Perlman", "Dennis Ritchie",
+        "Barbara Liskov", "John von Neumann", "Annie Easley",
+      ].join("\n");
+      buildGrid();
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -103,6 +109,69 @@
       t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tab-pane").forEach((p) =>
       p.classList.toggle("active", p.dataset.pane === name));
+    persist();
+  }
+
+  // -------------------------------------------------------------------------
+  // Session cache — keep the last session in localStorage, restore on launch.
+  // -------------------------------------------------------------------------
+  function persist() {
+    try {
+      const activeTabEl = document.querySelector(".tab.active");
+      const state = {
+        v: 1,
+        testName: els.testName.value,
+        numQuestionsInput: els.numQuestions.value,
+        numQuestions: numQuestions,
+        classList: els.classList.value,
+        built: !els.gradeTable.hidden,
+        activeTab: activeTabEl ? activeTabEl.dataset.tab : "setup",
+        students: students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch (e) {
+      /* storage unavailable (private mode / quota) — ignore */
+    }
+  }
+
+  function restoreSession() {
+    let state;
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return false;
+      state = JSON.parse(raw);
+    } catch (e) {
+      return false;
+    }
+    if (!state || typeof state !== "object") return false;
+
+    els.testName.value = state.testName != null ? state.testName : "Quiz 1";
+    els.numQuestions.value = state.numQuestionsInput || state.numQuestions || 10;
+    els.classList.value = state.classList || "";
+
+    if (state.built && Array.isArray(state.students) && state.students.length) {
+      numQuestions = Math.max(1, parseInt(state.numQuestions, 10) || 1);
+      students = state.students.map((s) => {
+        const marks = Array.isArray(s.marks) ? s.marks.slice(0, numQuestions) : [];
+        while (marks.length < numQuestions) marks.push("none");
+        return {
+          name: String(s.name || ""),
+          marks: marks.map((m) => (m === "correct" || m === "wrong" ? m : "none")),
+          done: !!s.done,
+        };
+      });
+      renderHead();
+      renderBody();
+      els.gradeTable.hidden = false;
+      els.emptyState.hidden = true;
+      els.analysisPanel.hidden = false;
+      els.analysisEmpty.hidden = true;
+      syncTestTitle();
+      updateAnalysis();
+    }
+
+    switchTab(state.activeTab || "setup");
+    return true;
   }
 
   function parseNames(text) {
@@ -135,6 +204,7 @@
     els.analysisEmpty.hidden = true;
     syncTestTitle();
     updateAnalysis();
+    persist();
   }
 
   function clearAll() {
@@ -146,6 +216,7 @@
     els.emptyState.hidden = false;
     els.analysisPanel.hidden = true;
     els.analysisEmpty.hidden = false;
+    persist();
   }
 
   function renderHead() {
@@ -219,12 +290,14 @@
     refreshScores();
     renderFoot();
     updateAnalysis();
+    persist();
   }
 
   function toggleDone(r) {
     students[r].done = !students[r].done;
     applyDoneStyling(els.gradeBody.children[r], students[r].done);
     updateAnalysis();
+    persist();
   }
 
   function applyDoneStyling(tr, done) {

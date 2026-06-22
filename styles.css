@@ -134,6 +134,7 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
   border-radius: 8px; background: #fff; color: var(--ink); min-width: 200px; cursor: pointer;
 }
 .test-switcher select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.test-switcher .new-test-btn { margin-left: auto; white-space: nowrap; }
 
 /* ---------- pinned student ---------- */
 .pinned-panel { padding: 0.9rem 1rem 1rem; border-color: var(--accent); }

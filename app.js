@@ -34,7 +34,7 @@
   const els = {};
   document.addEventListener("DOMContentLoaded", function () {
     [
-      "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
+      "classList", "numQuestions", "testName", "newTestBtn", "clearBtn",
       "saveBtn", "loadBtn", "loadFile", "clearMarksBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "analysisTitle", "detailsPanel", "detailsHeader",
@@ -48,7 +48,7 @@
 
     initTooltip();
 
-    els.buildBtn.addEventListener("click", createTest);
+    els.newTestBtn.addEventListener("click", createTest);
     els.clearBtn.addEventListener("click", clearSetupForm);
     els.clearMarksBtn.addEventListener("click", clearMarks);
 

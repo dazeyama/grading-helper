@@ -1,5 +1,7 @@
 # Grading Helper
 
+### 👉 [Open the live app: dazeyama.github.io/grading-helper](https://dazeyama.github.io/grading-helper/)
+
 **Mrs. Amanita's Grading Helper** — a classroom grading tool that lets a teacher grade a whole class at once and see live data analysis as they go.
 
 - **Live:** https://dazeyama.github.io/grading-helper/

@@ -126,6 +126,7 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
   font-size: 0.8rem; margin: 0 0.15rem;
 }
 .chip.correct { background: var(--correct-bg); color: var(--correct); }
+.chip.half { background: #fdf4dc; color: #b07f00; }
 .chip.wrong { background: var(--wrong-bg); color: var(--wrong); }
 .chip.none { background: var(--none-bg); color: var(--muted); }
 
@@ -233,6 +234,7 @@ tbody tr.row-done.band-none .name-col    { border-left: 4px solid var(--none); }
   display: flex; align-items: center; justify-content: center;
 }
 .cell.state-correct { background: var(--correct-bg); color: var(--correct); }
+.cell.state-half { background: #fdf4dc; color: #c98a00; font-weight: 700; }
 .cell.state-wrong { background: var(--wrong-bg); color: var(--wrong); }
 .cell.state-none { background: transparent; color: #cdd3dd; }
 .cell:hover { filter: brightness(0.97); }

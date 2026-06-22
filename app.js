@@ -6,8 +6,8 @@
 (function () {
   "use strict";
 
-  const STATES = ["none", "correct", "wrong"];
-  const GLYPH = { none: "", correct: "✓", wrong: "✗" };
+  const STATES = ["none", "correct", "half", "wrong"];
+  const GLYPH = { none: "", correct: "✓", half: "/", wrong: "✗" };
   const STORE_KEY = "gradingHelper.session.v1";
   const SAMPLE_NAMES = [
     "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
@@ -154,7 +154,7 @@
       while (marks.length < nq) marks.push("none");
       return {
         name: String(s.name || ""),
-        marks: marks.map((m) => (m === "correct" || m === "wrong" ? m : "none")),
+        marks: marks.map((m) => (m === "correct" || m === "wrong" || m === "half" ? m : "none")),
         done: !!s.done,
       };
     });
@@ -412,7 +412,7 @@
     if (nq < numQuestions) {
       // Only warn if shrinking would actually discard marked (non-blank) cells.
       const losesData = students.some((s) =>
-        s.marks.slice(nq).some((m) => m === "correct" || m === "wrong"));
+        s.marks.slice(nq).some((m) => m !== "none"));
       if (losesData &&
           !window.confirm(`Reduce to ${nq} questions? Existing marks for questions ${nq + 1}–${numQuestions} will be removed.`)) {
         els.numQuestions.value = numQuestions;
@@ -674,37 +674,43 @@
     els.detailsPanel.classList.toggle("collapsed", detailsCollapsed);
   }
 
-  // Score = correct / (attempted), where attempted = correct + wrong.
+  // Score = credit / attempted, where "/" (half) is worth 0.5 and attempted = correct + half + wrong.
   function studentStats(stu) {
-    let correct = 0, wrong = 0;
+    let correct = 0, wrong = 0, half = 0;
     stu.marks.forEach((m) => {
       if (m === "correct") correct++;
       else if (m === "wrong") wrong++;
+      else if (m === "half") half++;
     });
-    const attempted = correct + wrong;
-    const pct = attempted ? Math.round((correct / attempted) * 100) : null;
-    return { correct, wrong, attempted, pct };
+    const attempted = correct + half + wrong;
+    const credit = correct + 0.5 * half;
+    const pct = attempted ? Math.round((credit / attempted) * 100) : null;
+    return { correct, wrong, half, attempted, pct };
   }
 
   function refreshScores() {
     const rows = els.gradeBody.children;
     students.forEach((stu, r) => {
-      const { correct, attempted, pct } = studentStats(stu);
+      const { correct, wrong, half, attempted, pct } = studentStats(stu);
       const pill = rows[r].querySelector(".score-pill");
       pill.textContent = attempted ? `${pct}%` : "—";
-      pill.setAttribute("data-tip", `${correct}/${attempted} correct`);
+      const parts = [`${correct} correct`];
+      if (half) parts.push(`${half} half`);
+      parts.push(`${wrong} wrong`);
+      pill.setAttribute("data-tip", parts.join(", "));
     });
   }
 
   function renderFoot() {
     let html = '<tr><td class="name-col">Class % correct</td>';
     for (let q = 0; q < numQuestions; q++) {
-      let correct = 0, attempted = 0;
+      let correct = 0, half = 0, attempted = 0;
       students.forEach((stu) => {
         if (stu.marks[q] === "correct") { correct++; attempted++; }
+        else if (stu.marks[q] === "half") { half++; attempted++; }
         else if (stu.marks[q] === "wrong") attempted++;
       });
-      const pct = attempted ? Math.round((correct / attempted) * 100) : null;
+      const pct = attempted ? Math.round(((correct + 0.5 * half) / attempted) * 100) : null;
       html += `<td>${pct === null ? "—" : pct + "%"}</td>`;
     }
     html += "<td></td><td></td></tr>";
@@ -727,15 +733,16 @@
     // ---- per-question ----
     const perQuestion = [];
     for (let q = 0; q < numQuestions; q++) {
-      let correct = 0, attempted = 0;
+      let correct = 0, half = 0, attempted = 0;
       students.forEach((stu) => {
         if (stu.marks[q] === "correct") { correct++; attempted++; }
+        else if (stu.marks[q] === "half") { half++; attempted++; }
         else if (stu.marks[q] === "wrong") attempted++;
       });
       perQuestion.push({
-        q: q + 1, correct, attempted,
+        q: q + 1, correct, half, attempted,
         blanks: students.length - attempted,
-        pct: attempted ? Math.round((correct / attempted) * 100) : null,
+        pct: attempted ? Math.round(((correct + 0.5 * half) / attempted) * 100) : null,
       });
     }
     const gradedQs = perQuestion.filter((s) => s.attempted > 0);
@@ -997,7 +1004,8 @@
       const s = studentStats(stu);
       const row = [stu.name];
       for (let q = 0; q < numQuestions; q++) {
-        row.push(stu.marks[q] === "correct" ? "Correct" : stu.marks[q] === "wrong" ? "Wrong" : "");
+        const m = stu.marks[q];
+        row.push(m === "correct" ? "Correct" : m === "wrong" ? "Wrong" : m === "half" ? "Half" : "");
       }
       row.push(stu.done ? "Done" : "");
       row.push(s.attempted ? s.pct + "%" : "");
@@ -1055,6 +1063,7 @@
     const v = (cell || "").trim().toLowerCase();
     if (["correct", "c", "1", "y", "yes", "true", "right", "✓"].includes(v)) return "correct";
     if (["wrong", "x", "0", "incorrect", "w", "✗"].includes(v)) return "wrong";
+    if (["half", "h", "partial", "p", "0.5", ".5", "/"].includes(v)) return "half";
     return "none";
   }
 

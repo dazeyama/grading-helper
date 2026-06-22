@@ -620,7 +620,11 @@
     renderQuestionBars(perQuestion);
 
     // ---- hardest / easiest questions ----
-    const qLi = (s) => `<li>Q${s.q} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`;
+    const qLi = (s) => {
+      const wrong = namesWhere((stu) => stu.marks[s.q - 1] === "wrong");
+      const tip = `Got Q${s.q} wrong: ${joinNames(wrong)}`;
+      return `<li data-tip="${escapeHtml(tip)}">Q${s.q} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`;
+    };
     els.hardestList.innerHTML =
       gradedQs.slice().sort((a, b) => a.pct - b.pct).slice(0, 3).map(qLi).join("") ||
       '<li class="meta">No questions graded yet.</li>';

@@ -35,26 +35,21 @@
           <span class="field-label">Test name</span>
           <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
         </label>
+        <label class="field field-narrow" for="numQuestions">
+          <span class="field-label"># of questions</span>
+          <input id="numQuestions" type="number" min="1" max="100" value="10" />
+        </label>
+        <button id="clearBtn" class="btn ghost">Clear</button>
         <div class="save-load">
           <button id="loadBtn" class="btn primary" title="Load a test from a .csv file">Load CSV</button>
           <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
         </div>
       </div>
 
-      <div class="setup-row">
-        <div class="field grow">
-          <label for="classList">Class list <small>(one student name per line)</small></label>
-          <textarea id="classList" rows="10" spellcheck="false"
-            placeholder="Ada Lovelace&#10;Grace Hopper&#10;Katherine Johnson&#10;Alan Turing"></textarea>
-        </div>
-
-        <div class="setup-side">
-          <div class="field">
-            <label for="numQuestions"># of questions</label>
-            <input id="numQuestions" type="number" min="1" max="100" value="10" />
-          </div>
-          <button id="clearBtn" class="btn ghost">Clear</button>
-        </div>
+      <div class="field setup-classlist">
+        <label for="classList">Class list <small>(one student name per line)</small></label>
+        <textarea id="classList" rows="10" spellcheck="false"
+          placeholder="Ada Lovelace&#10;Grace Hopper&#10;Katherine Johnson&#10;Alan Turing"></textarea>
       </div>
     </section>
     </div><!-- /setup pane -->

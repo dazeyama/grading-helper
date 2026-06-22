@@ -70,11 +70,14 @@ main {
 }
 .setup-top .field { flex: 1 1 240px; }
 .setup-top .field input { width: 100%; max-width: 360px; }
+.setup-top .field-narrow { flex: 0 0 auto; }
+.setup-top .field-narrow input { width: 90px; max-width: 90px; }
 .setup-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; }
 .field.grow { flex: 1 1 320px; }
-.field label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.field label small { font-weight: 400; }
+.field label, .field-label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.field label small, .field-label small { font-weight: 400; }
+.setup-classlist textarea { width: 100%; }
 
 textarea, input[type="text"], input[type="number"] {
   font: inherit;

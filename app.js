@@ -14,6 +14,7 @@
   let numQuestions = 10;
   let pinnedIndex = null;   // index of the pinned student, or null
   let sheetCollapsed = false;
+  let detailsCollapsed = false; // Analysis tab "Details" panel
   let menuIndex = null;     // student index the name menu is acting on
 
   // --- elements ---
@@ -23,7 +24,8 @@
       "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
       "saveBtn", "loadBtn", "loadFile", "clearMarksBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
-      "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
+      "analysisPanel", "analysisEmpty", "analysisTitle", "detailsPanel", "detailsHeader",
+      "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
@@ -54,6 +56,7 @@
 
     // Pin / unpin + collapsible sheet
     els.sheetHeader.addEventListener("click", toggleSheet);
+    els.detailsHeader.addEventListener("click", toggleDetails);
     els.pinnedName.addEventListener("click", unpinStudent);
     els.pinStudentBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -145,6 +148,7 @@
         activeTab: activeTabEl ? activeTabEl.dataset.tab : "setup",
         pinnedIndex: pinnedIndex,
         sheetCollapsed: sheetCollapsed,
+        detailsCollapsed: detailsCollapsed,
         students: students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
@@ -184,6 +188,7 @@
       els.gradeTable.hidden = false;
       els.emptyState.hidden = true;
       els.analysisPanel.hidden = false;
+      els.detailsPanel.hidden = false;
       els.analysisEmpty.hidden = true;
       syncTestTitle();
       updateAnalysis();
@@ -195,6 +200,8 @@
       }
       sheetCollapsed = !!state.sheetCollapsed;
       applySheetCollapsed();
+      detailsCollapsed = !!state.detailsCollapsed;
+      applyDetailsCollapsed();
     }
 
     switchTab(state.activeTab || "setup");
@@ -229,6 +236,7 @@
     els.gradeTable.hidden = false;
     els.emptyState.hidden = true;
     els.analysisPanel.hidden = false;
+    els.detailsPanel.hidden = false;
     els.analysisEmpty.hidden = true;
     syncTestTitle();
     updateAnalysis();
@@ -265,6 +273,7 @@
     els.gradeTable.hidden = true;
     els.emptyState.hidden = false;
     els.analysisPanel.hidden = true;
+    els.detailsPanel.hidden = true;
     els.analysisEmpty.hidden = false;
     persist();
   }
@@ -472,6 +481,16 @@
 
   function applySheetCollapsed() {
     els.gridPanel.classList.toggle("collapsed", sheetCollapsed);
+  }
+
+  function toggleDetails() {
+    detailsCollapsed = !detailsCollapsed;
+    applyDetailsCollapsed();
+    persist();
+  }
+
+  function applyDetailsCollapsed() {
+    els.detailsPanel.classList.toggle("collapsed", detailsCollapsed);
   }
 
   // Score = correct / (attempted), where attempted = correct + wrong.
@@ -923,6 +942,7 @@
     els.gradeTable.hidden = roster.length === 0;
     els.emptyState.hidden = roster.length !== 0;
     els.analysisPanel.hidden = false;
+    els.detailsPanel.hidden = false;
     els.analysisEmpty.hidden = true;
     syncTestTitle();
     updateAnalysis();

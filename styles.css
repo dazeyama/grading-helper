@@ -235,6 +235,15 @@ tfoot td {
 tfoot td.name-col { text-align: left; color: var(--ink); }
 
 /* ---------- analysis ---------- */
+.analysis-hero { border-color: var(--accent); }
+
+/* Collapsible details panel (hide to conceal student names) */
+.analysis-details { padding: 0; }
+.analysis-details .details-body { padding: 1.2rem; }
+.analysis-details.collapsed .details-body { display: none; }
+.analysis-details.collapsed .sheet-header { border-bottom: none; border-radius: 12px; }
+.analysis-details.collapsed .sheet-toggle { transform: rotate(-90deg); }
+
 .analysis-kicker {
   margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--accent);

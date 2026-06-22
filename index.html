@@ -95,8 +95,8 @@
     <div id="analysisEmpty" class="panel empty-state">
       Build a grid on the <strong>Grade</strong> tab to see live analysis.
     </div>
-    <!-- Live analysis -->
-    <section class="panel analysis" id="analysisPanel" hidden>
+    <!-- Live analysis — top "hero" panel (always visible) -->
+    <section class="panel analysis analysis-hero" id="analysisPanel" hidden>
       <p class="analysis-kicker">Live Analysis</p>
       <h1 class="analysis-title" id="analysisTitle">Quiz 1</h1>
 
@@ -127,20 +127,29 @@
           </div>
         </div>
       </div>
+    </section>
 
-      <h3 class="section-title">Highlights</h3>
-      <div class="insights" id="insightStrip"></div>
+    <!-- Details — collapsible (hide to conceal student names) -->
+    <section class="panel analysis analysis-details" id="detailsPanel" hidden>
+      <button class="sheet-header" id="detailsHeader" type="button">
+        <span>Details &amp; student breakdown</span>
+        <span class="sheet-toggle" id="detailsToggle" aria-hidden="true">▾</span>
+      </button>
+      <div class="details-body">
+        <h3 class="section-title">Highlights</h3>
+        <div class="insights" id="insightStrip"></div>
 
-      <div class="stats" id="statCards"></div>
+        <div class="stats" id="statCards"></div>
 
-      <div class="analysis-cols">
-        <div class="analysis-box">
-          <h3>Top performers</h3>
-          <ol id="topList" class="mini-list"></ol>
-        </div>
-        <div class="analysis-box">
-          <h3>Students needing attention</h3>
-          <ol id="strugglingList" class="mini-list"></ol>
+        <div class="analysis-cols">
+          <div class="analysis-box">
+            <h3>Top performers</h3>
+            <ol id="topList" class="mini-list"></ol>
+          </div>
+          <div class="analysis-box">
+            <h3>Students needing attention</h3>
+            <ol id="strugglingList" class="mini-list"></ol>
+          </div>
         </div>
       </div>
     </section>

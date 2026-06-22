@@ -811,6 +811,32 @@
         text: `${missedQs.length} question${missedQs.length !== 1 ? "s" : ""} no one got right.`,
         tip: `No one correct: ${missedQs.map((q) => "Q" + q.q).join(", ")}` });
     }
+    // Half-credit ("/") awareness
+    const totalHalf = perQuestion.reduce((a, q) => a + q.half, 0);
+    if (totalHalf > 0) {
+      const topHalfQ = perQuestion.filter((q) => q.half > 0).sort((a, b) => b.half - a.half)[0];
+      const halfNames = namesWhere((s) => s.marks[topHalfQ.q - 1] === "half");
+      ins.push({ tone: "warn",
+        text: `${totalHalf} half-credit mark${totalHalf !== 1 ? "s" : ""} given; most on Q${topHalfQ.q} (${topHalfQ.half}).`,
+        tip: `Half credit on Q${topHalfQ.q}: ${joinNames(halfNames)}` });
+
+      // Whole-class partial: a question everyone who answered got half on.
+      const allHalf = perQuestion.filter((q) => q.attempted > 0 && q.half === q.attempted);
+      if (allHalf.length) ins.push({ tone: "info",
+        text: `Everyone got partial credit on Q${allHalf.map((q) => q.q).join(", Q")}.`,
+        tip: `All answers were half credit: ${allHalf.map((q) => "Q" + q.q).join(", ")}` });
+
+      // Students leaning on partial credit.
+      const perStudentHalf = students.map((s) => ({ name: s.name, half: s.marks.filter((m) => m === "half").length }));
+      const maxHalf = Math.max.apply(null, perStudentHalf.map((s) => s.half));
+      if (maxHalf >= 2) {
+        const tied = perStudentHalf.filter((s) => s.half === maxHalf).map((s) => s.name);
+        ins.push({ tone: "info",
+          text: `Most partial answers: ${tied.length > 1 ? tied.length + " students" : tied[0]} with ${maxHalf} half marks.`,
+          tip: `${maxHalf} half marks: ${joinNames(tied)}` });
+      }
+    }
+
     if (blanks > 0) {
       const mostSkipped = perQuestion.slice().sort((a, b) => b.blanks - a.blanks)[0];
       const skipNames = namesWhere((s) => s.marks[mostSkipped.q - 1] === "none");

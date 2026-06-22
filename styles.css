@@ -197,12 +197,18 @@ tbody tr.row-done.band-nearly td  { background: #fdf4dc; }
 tbody tr.row-done.band-notmeet td { background: var(--wrong-bg); }
 tbody tr.row-done.band-none td    { background: var(--none-bg); }
 
-/* Name fades out but takes the band color, with a matching accent bar */
-tbody tr.row-done .name-col { font-weight: 600; }
-tbody tr.row-done.band-meets .name-col   { color: rgba(31, 157, 85, 0.7);  border-left: 4px solid var(--correct); }
-tbody tr.row-done.band-nearly .name-col  { color: rgba(176, 128, 0, 0.85); border-left: 4px solid #e0a400; }
-tbody tr.row-done.band-notmeet .name-col { color: rgba(216, 58, 58, 0.75); border-left: 4px solid var(--wrong); }
-tbody tr.row-done.band-none .name-col    { color: var(--muted); border-left: 4px solid var(--none); }
+/* The check / X boxes also take the band tint */
+tbody tr.row-done.band-meets .cell   { background: var(--correct-bg); }
+tbody tr.row-done.band-nearly .cell  { background: #fdf4dc; }
+tbody tr.row-done.band-notmeet .cell { background: var(--wrong-bg); }
+tbody tr.row-done.band-none .cell    { background: var(--none-bg); }
+
+/* Name stays black, with a band-colored accent bar */
+tbody tr.row-done .name-col { color: var(--ink); }
+tbody tr.row-done.band-meets .name-col   { border-left: 4px solid var(--correct); }
+tbody tr.row-done.band-nearly .name-col  { border-left: 4px solid #e0a400; }
+tbody tr.row-done.band-notmeet .name-col { border-left: 4px solid var(--wrong); }
+tbody tr.row-done.band-none .name-col    { border-left: 4px solid var(--none); }
 
 /* tri-state cell */
 .cell {

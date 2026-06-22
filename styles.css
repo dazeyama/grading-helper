@@ -23,7 +23,21 @@
 
 * { box-sizing: border-box; }
 
-html { background-color: var(--paper); }
+/* Lined notebook paper lives on the ROOT (html) so the fixed pencil
+   (z-index:-1) layers above it but still behind the page content:
+     1) red vertical margin line (full height, tiled down)
+     2) cream mask hiding rules above the tab shelf (blank top, like real paper)
+     3) blue horizontal rules starting exactly at --line-start (the red shelf) */
+html {
+  min-height: 100%;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(90deg, transparent 0 var(--margin-x), var(--margin-line) var(--margin-x) calc(var(--margin-x) + 2px), transparent calc(var(--margin-x) + 2px)),
+    linear-gradient(180deg, var(--paper) 0 var(--line-start), transparent var(--line-start)),
+    repeating-linear-gradient(180deg, var(--rule) 0 1px, transparent 1px 32px);
+  background-repeat: repeat-y, no-repeat, repeat;
+  background-position: 0 0, 0 0, 0 var(--line-start);
+}
 
 body {
   margin: 0;
@@ -31,17 +45,7 @@ body {
   overflow-x: hidden;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
-  /* Lined notebook paper:
-     1) red vertical margin line (full height)
-     2) cream mask hiding rules above the tab shelf (blank top, like real paper)
-     3) blue horizontal rules starting exactly at --line-start (the red shelf) */
-  background-color: var(--paper);
-  background-image:
-    linear-gradient(90deg, transparent 0 var(--margin-x), var(--margin-line) var(--margin-x) calc(var(--margin-x) + 2px), transparent calc(var(--margin-x) + 2px)),
-    linear-gradient(180deg, var(--paper) 0 var(--line-start), transparent var(--line-start)),
-    repeating-linear-gradient(180deg, var(--rule) 0 1px, transparent 1px 32px);
-  background-repeat: no-repeat, no-repeat, repeat;
-  background-position: 0 0, 0 0, 0 var(--line-start);
+  background: transparent;
 }
 
 .topbar {

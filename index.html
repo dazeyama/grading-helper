@@ -55,6 +55,16 @@
 
     <!-- ===== Grade tab ===== -->
     <div class="tab-pane" data-pane="grade">
+
+    <!-- Pinned student -->
+    <section class="panel pinned-panel" id="pinnedPanel" hidden>
+      <div class="pinned-bar">
+        <button class="pinned-name" id="pinnedName" type="button" data-tip="Click to unpin"></button>
+        <span class="pinned-sub">📌 Pinned — click the name to unpin</span>
+      </div>
+      <div class="pinned-grid" id="pinnedGrid"></div>
+    </section>
+
     <div class="grade-toolbar">
       <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
         <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
@@ -62,8 +72,12 @@
     </div>
 
     <!-- Grading grid -->
-    <section class="panel grid-panel">
-      <div class="grid-scroll">
+    <section class="panel grid-panel" id="gridPanel">
+      <button class="sheet-header" id="sheetHeader" type="button">
+        <span>Class sheet</span>
+        <span class="sheet-toggle" id="sheetToggle" aria-hidden="true">▾</span>
+      </button>
+      <div class="grid-scroll" id="gridScroll">
         <table id="gradeTable" class="grade-table" hidden>
           <thead id="gradeHead"></thead>
           <tbody id="gradeBody"></tbody>
@@ -135,6 +149,10 @@
   <footer class="foot">Grading Helper &middot; runs entirely in your browser</footer>
 
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+  <div id="nameMenu" class="name-menu" hidden>
+    <button id="pinStudentBtn" class="name-menu-item" type="button">Pin Student</button>
+  </div>
 
   <script src="config.js"></script>
   <script src="app.js"></script>

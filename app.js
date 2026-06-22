@@ -12,6 +12,9 @@
 
   let students = []; // [{ name, marks: [state,...] }]
   let numQuestions = 10;
+  let pinnedIndex = null;   // index of the pinned student, or null
+  let sheetCollapsed = false;
+  let menuIndex = null;     // student index the name menu is acting on
 
   // --- elements ---
   const els = {};
@@ -23,6 +26,8 @@
       "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
+      "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
+      "sheetToggle", "nameMenu", "pinStudentBtn",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
@@ -46,6 +51,17 @@
     document.querySelectorAll(".tab").forEach((tab) => {
       tab.addEventListener("click", () => switchTab(tab.dataset.tab));
     });
+
+    // Pin / unpin + collapsible sheet
+    els.sheetHeader.addEventListener("click", toggleSheet);
+    els.pinnedName.addEventListener("click", unpinStudent);
+    els.pinStudentBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menuIndex != null) pinStudent(menuIndex);
+      closeNameMenu();
+    });
+    // Click anywhere else closes the name menu.
+    document.addEventListener("click", () => closeNameMenu());
 
     // Resume the last session if one was cached; otherwise seed sample data.
     if (!restoreSession()) {
@@ -127,6 +143,8 @@
         classList: els.classList.value,
         built: !els.gradeTable.hidden,
         activeTab: activeTabEl ? activeTabEl.dataset.tab : "setup",
+        pinnedIndex: pinnedIndex,
+        sheetCollapsed: sheetCollapsed,
         students: students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
@@ -169,6 +187,14 @@
       els.analysisEmpty.hidden = true;
       syncTestTitle();
       updateAnalysis();
+
+      // Restore pinned student + sheet collapse.
+      if (state.pinnedIndex != null && students[state.pinnedIndex]) {
+        pinnedIndex = state.pinnedIndex;
+        renderPinned();
+      }
+      sheetCollapsed = !!state.sheetCollapsed;
+      applySheetCollapsed();
     }
 
     switchTab(state.activeTab || "setup");
@@ -197,6 +223,7 @@
       done: false,
     }));
 
+    resetPin();
     renderHead();
     renderBody();
     els.gradeTable.hidden = false;
@@ -208,6 +235,13 @@
     persist();
   }
 
+  function resetPin() {
+    pinnedIndex = null;
+    sheetCollapsed = false;
+    if (els.pinnedPanel) els.pinnedPanel.hidden = true;
+    applySheetCollapsed();
+  }
+
   // Reset every mark and Done flag, keeping the roster and question count.
   function clearMarks() {
     if (!students.length) return;
@@ -217,12 +251,14 @@
       s.done = false;
     });
     renderBody();
+    if (pinnedIndex != null) renderPinned();
     updateAnalysis();
     persist();
   }
 
   function clearAll() {
     students = [];
+    resetPin();
     els.gradeBody.innerHTML = "";
     els.gradeHead.innerHTML = "";
     els.gradeFoot.innerHTML = "";
@@ -250,6 +286,7 @@
       const nameTd = document.createElement("td");
       nameTd.className = "name-col";
       nameTd.textContent = stu.name;
+      nameTd.addEventListener("click", (e) => { e.stopPropagation(); openNameMenu(r, e.clientX, e.clientY); });
       tr.appendChild(nameTd);
 
       for (let q = 0; q < numQuestions; q++) {
@@ -257,7 +294,7 @@
         const btn = document.createElement("button");
         btn.className = "cell state-" + stu.marks[q];
         btn.textContent = GLYPH[stu.marks[q]];
-        btn.addEventListener("click", () => cycleCell(r, q, btn));
+        btn.addEventListener("click", () => applyCellChange(r, q));
         td.appendChild(btn);
         tr.appendChild(td);
       }
@@ -285,31 +322,35 @@
     renderFoot();
   }
 
-  function cycleCell(r, q, btn) {
+  // Cycle a student's question mark; keeps the main grid and pinned panel in sync.
+  function applyCellChange(r, q) {
     const cur = students[r].marks[q];
     const next = STATES[(STATES.indexOf(cur) + 1) % STATES.length];
     students[r].marks[q] = next;
-    btn.className = "cell state-" + next;
-    btn.textContent = GLYPH[next];
 
-    // Auto-mark Done when every question is filled (check or X); reopen if a
-    // cell is cleared back to blank. This also "comes back" when a graded row
-    // is edited and no longer complete.
-    const allMarked = students[r].marks.every((m) => m !== "none");
-    if (students[r].done !== allMarked) {
-      students[r].done = allMarked;
-      applyDoneStyling(els.gradeBody.children[r], allMarked);
+    // Auto-mark Done when every question is filled; reopen if cleared to blank.
+    students[r].done = students[r].marks.every((m) => m !== "none");
+
+    // Update the main grid row (it may be collapsed/offscreen, but stays current).
+    const tr = els.gradeBody.children[r];
+    if (tr) {
+      const mb = tr.querySelectorAll(".cell")[q];
+      if (mb) { mb.className = "cell state-" + next; mb.textContent = GLYPH[next]; }
+      applyDoneStyling(tr, students[r].done);
     }
 
     refreshScores();
     renderFoot();
+    if (pinnedIndex === r) renderPinned();
     updateAnalysis();
     persist();
   }
 
   function toggleDone(r) {
     students[r].done = !students[r].done;
-    applyDoneStyling(els.gradeBody.children[r], students[r].done);
+    const tr = els.gradeBody.children[r];
+    if (tr) applyDoneStyling(tr, students[r].done);
+    if (pinnedIndex === r) renderPinned();
     updateAnalysis();
     persist();
   }
@@ -322,6 +363,104 @@
       btn.textContent = done ? "Done ✓" : "Done";
       btn.setAttribute("data-tip", done ? "Marked fully graded — click to reopen" : "Mark this student fully graded");
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pin a student, collapsible sheet, and the name popup menu
+  // -------------------------------------------------------------------------
+  function openNameMenu(r, x, y) {
+    menuIndex = r;
+    const menu = els.nameMenu;
+    menu.hidden = false;
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let left = x, top = y + 6;
+    if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+    if (top + mh > window.innerHeight - 8) top = y - mh - 6;
+    menu.style.left = Math.max(8, left) + "px";
+    menu.style.top = Math.max(8, top) + "px";
+  }
+
+  function closeNameMenu() {
+    els.nameMenu.hidden = true;
+    menuIndex = null;
+  }
+
+  function pinStudent(r) {
+    if (r == null || !students[r]) return;
+    pinnedIndex = r;
+    sheetCollapsed = true; // collapse the main sheet while a student is pinned
+    renderPinned();
+    applySheetCollapsed();
+    persist();
+  }
+
+  function unpinStudent() {
+    pinnedIndex = null;
+    els.pinnedPanel.hidden = true;
+    sheetCollapsed = false; // reopen the sheet
+    applySheetCollapsed();
+    persist();
+  }
+
+  function renderPinned() {
+    const stu = pinnedIndex != null ? students[pinnedIndex] : null;
+    if (!stu) { els.pinnedPanel.hidden = true; return; }
+
+    els.pinnedName.textContent = stu.name;
+
+    const table = document.createElement("table");
+    table.className = "grade-table pinned-table";
+
+    const thead = document.createElement("thead");
+    let h = "<tr>";
+    for (let q = 1; q <= numQuestions; q++) h += `<th class="q-col">Q${q}</th>`;
+    h += '<th class="score-col">Score</th><th class="done-col">Done</th></tr>';
+    thead.innerHTML = h;
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    const tr = document.createElement("tr");
+    for (let q = 0; q < numQuestions; q++) {
+      const td = document.createElement("td");
+      const btn = document.createElement("button");
+      btn.className = "cell state-" + stu.marks[q];
+      btn.textContent = GLYPH[stu.marks[q]];
+      btn.addEventListener("click", () => applyCellChange(pinnedIndex, q));
+      td.appendChild(btn);
+      tr.appendChild(td);
+    }
+    const s = studentStats(stu);
+    const scoreTd = document.createElement("td");
+    scoreTd.className = "score-col";
+    scoreTd.innerHTML = `<span class="score-pill">${s.attempted ? s.pct + "%" : "—"}</span>`;
+    tr.appendChild(scoreTd);
+
+    const doneTd = document.createElement("td");
+    doneTd.className = "done-col";
+    const doneBtn = document.createElement("button");
+    doneBtn.className = "done-btn";
+    doneBtn.type = "button";
+    doneBtn.addEventListener("click", () => toggleDone(pinnedIndex));
+    doneTd.appendChild(doneBtn);
+    tr.appendChild(doneTd);
+
+    applyDoneStyling(tr, stu.done);
+    tbody.appendChild(tr);
+    table.appendChild(tbody);
+
+    els.pinnedGrid.innerHTML = "";
+    els.pinnedGrid.appendChild(table);
+    els.pinnedPanel.hidden = false;
+  }
+
+  function toggleSheet() {
+    sheetCollapsed = !sheetCollapsed;
+    applySheetCollapsed();
+    persist();
+  }
+
+  function applySheetCollapsed() {
+    els.gridPanel.classList.toggle("collapsed", sheetCollapsed);
   }
 
   // Score = correct / (attempted), where attempted = correct + wrong.
@@ -757,6 +896,7 @@
     // Apply loaded state.
     numQuestions = qCount;
     students = roster;
+    resetPin();
     els.testName.value = name;
     els.numQuestions.value = qCount;
     els.classList.value = roster.map((s) => s.name).join("\n");

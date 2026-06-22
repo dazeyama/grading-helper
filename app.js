@@ -9,12 +9,25 @@
   const STATES = ["none", "correct", "wrong"];
   const GLYPH = { none: "", correct: "✓", wrong: "✗" };
   const STORE_KEY = "gradingHelper.session.v1";
+  const SAMPLE_NAMES = [
+    "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
+    "Margaret Hamilton", "Charles Babbage", "Dorothy Vaughan", "Linus Torvalds",
+    "Hedy Lamarr", "Tim Berners-Lee", "Radia Perlman", "Dennis Ritchie",
+    "Barbara Liskov", "John von Neumann", "Annie Easley",
+  ];
 
-  let students = []; // [{ name, marks: [state,...] }]
+  // Collection of tests. Each: { id, name, numQuestions, students, pinnedIndex, sheetCollapsed }
+  let tests = [];
+  let currentTestId = null;
+  let testCounter = 0;
+
+  // Working state for the CURRENT test (the render functions read these globals;
+  // `students` is a live reference into the current test object).
+  let students = []; // [{ name, marks: [state,...], done }]
   let numQuestions = 10;
   let pinnedIndex = null;   // index of the pinned student, or null
   let sheetCollapsed = false;
-  let detailsCollapsed = false; // Analysis tab "Details" panel
+  let detailsCollapsed = false; // Analysis tab "Details" panel (global, not per-test)
   let menuIndex = null;     // student index the name menu is acting on
 
   // --- elements ---
@@ -29,20 +42,23 @@
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
-      "sheetToggle", "nameMenu", "pinStudentBtn",
+      "sheetToggle", "nameMenu", "pinStudentBtn", "gradeTestSelect", "analysisTestSelect",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
 
-    els.buildBtn.addEventListener("click", () => { buildGrid(); switchTab("grade"); });
-    els.clearBtn.addEventListener("click", clearAll);
+    els.buildBtn.addEventListener("click", createTest);
+    els.clearBtn.addEventListener("click", clearSetupForm);
     els.clearMarksBtn.addEventListener("click", clearMarks);
 
-    // Keep the Analysis title in sync with the Test name field as it's typed,
-    // and persist edits to the setup fields.
-    els.testName.addEventListener("input", () => { syncTestTitle(); persist(); });
+    // Persist edits to the setup (new-test) form fields.
+    els.testName.addEventListener("input", persist);
     els.classList.addEventListener("input", persist);
     els.numQuestions.addEventListener("input", persist);
+
+    // Test switcher dropdowns (Grade + Analysis stay in sync)
+    els.gradeTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
+    els.analysisTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
 
     // Save / load (CSV, one test per file)
     els.saveBtn.addEventListener("click", saveCsv);
@@ -67,16 +83,8 @@
     // Click anywhere else closes the name menu.
     document.addEventListener("click", () => closeNameMenu());
 
-    // Resume the last session if one was cached; otherwise seed sample data.
-    if (!restoreSession()) {
-      els.classList.value = [
-        "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
-        "Margaret Hamilton", "Charles Babbage", "Dorothy Vaughan", "Linus Torvalds",
-        "Hedy Lamarr", "Tim Berners-Lee", "Radia Perlman", "Dennis Ritchie",
-        "Barbara Liskov", "John von Neumann", "Annie Easley",
-      ].join("\n");
-      buildGrid();
-    }
+    // Resume the last session if one was cached; otherwise seed a sample test.
+    if (!restoreSession()) seedDefaultTest();
   });
 
   // -------------------------------------------------------------------------
@@ -121,8 +129,8 @@
   }
 
   function syncTestTitle() {
-    const name = els.testName.value.trim();
-    els.analysisTitle.textContent = name || "Untitled test";
+    const t = getCurrentTest();
+    els.analysisTitle.textContent = (t && t.name) ? t.name : "Untitled test";
   }
 
   function switchTab(name) {
@@ -136,21 +144,44 @@
   // -------------------------------------------------------------------------
   // Session cache — keep the last session in localStorage, restore on launch.
   // -------------------------------------------------------------------------
+  function sanitizeTest(t) {
+    const nq = Math.max(1, parseInt(t.numQuestions, 10) || 1);
+    const studs = (Array.isArray(t.students) ? t.students : []).map((s) => {
+      const marks = Array.isArray(s.marks) ? s.marks.slice(0, nq) : [];
+      while (marks.length < nq) marks.push("none");
+      return {
+        name: String(s.name || ""),
+        marks: marks.map((m) => (m === "correct" || m === "wrong" ? m : "none")),
+        done: !!s.done,
+      };
+    });
+    return {
+      id: t.id || genId(),
+      name: t.name || "Untitled test",
+      numQuestions: nq,
+      students: studs,
+      pinnedIndex: (t.pinnedIndex != null && studs[t.pinnedIndex]) ? t.pinnedIndex : null,
+      sheetCollapsed: !!t.sheetCollapsed,
+    };
+  }
+
   function persist() {
     try {
+      syncCurrentTest();
       const activeTabEl = document.querySelector(".tab.active");
       const state = {
-        v: 1,
-        testName: els.testName.value,
-        numQuestionsInput: els.numQuestions.value,
-        numQuestions: numQuestions,
-        classList: els.classList.value,
-        built: !els.gradeTable.hidden,
+        v: 2,
+        tests: tests.map((t) => ({
+          id: t.id, name: t.name, numQuestions: t.numQuestions,
+          pinnedIndex: t.pinnedIndex, sheetCollapsed: t.sheetCollapsed,
+          students: t.students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
+        })),
+        currentTestId: currentTestId,
         activeTab: activeTabEl ? activeTabEl.dataset.tab : "setup",
-        pinnedIndex: pinnedIndex,
-        sheetCollapsed: sheetCollapsed,
         detailsCollapsed: detailsCollapsed,
-        students: students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
+        setupName: els.testName.value,
+        setupClassList: els.classList.value,
+        setupNum: els.numQuestions.value,
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
     } catch (e) {
@@ -169,42 +200,32 @@
     }
     if (!state || typeof state !== "object") return false;
 
-    els.testName.value = state.testName != null ? state.testName : "Quiz 1";
-    els.numQuestions.value = state.numQuestionsInput || state.numQuestions || 10;
-    els.classList.value = state.classList || "";
+    // Setup (new-test) form fields.
+    els.testName.value = state.setupName != null ? state.setupName : (state.testName != null ? state.testName : "Quiz 1");
+    els.classList.value = state.setupClassList != null ? state.setupClassList : (state.classList || "");
+    els.numQuestions.value = state.setupNum || state.numQuestionsInput || 10;
+    detailsCollapsed = !!state.detailsCollapsed;
 
-    if (state.built && Array.isArray(state.students) && state.students.length) {
-      numQuestions = Math.max(1, parseInt(state.numQuestions, 10) || 1);
-      students = state.students.map((s) => {
-        const marks = Array.isArray(s.marks) ? s.marks.slice(0, numQuestions) : [];
-        while (marks.length < numQuestions) marks.push("none");
-        return {
-          name: String(s.name || ""),
-          marks: marks.map((m) => (m === "correct" || m === "wrong" ? m : "none")),
-          done: !!s.done,
-        };
+    if (Array.isArray(state.tests) && state.tests.length) {
+      tests = state.tests.map(sanitizeTest);
+      currentTestId = tests.some((t) => t.id === state.currentTestId) ? state.currentTestId : tests[0].id;
+    } else if (state.built && Array.isArray(state.students) && state.students.length) {
+      // Migrate an old single-session (v1) cache into one test.
+      const t = sanitizeTest({
+        name: state.testName || "Quiz 1",
+        numQuestions: state.numQuestions,
+        pinnedIndex: state.pinnedIndex,
+        sheetCollapsed: state.sheetCollapsed,
+        students: state.students,
       });
-      renderHead();
-      renderBody();
-      els.gradeTable.hidden = false;
-      els.emptyState.hidden = true;
-      els.analysisPanel.hidden = false;
-      els.detailsPanel.hidden = false;
-      els.analysisEmpty.hidden = true;
-      syncTestTitle();
-      updateAnalysis();
-
-      // Restore pinned student + sheet collapse.
-      if (state.pinnedIndex != null && students[state.pinnedIndex]) {
-        pinnedIndex = state.pinnedIndex;
-        renderPinned();
-      }
-      sheetCollapsed = !!state.sheetCollapsed;
-      applySheetCollapsed();
-      detailsCollapsed = !!state.detailsCollapsed;
-      applyDetailsCollapsed();
+      tests = [t];
+      currentTestId = t.id;
+    } else {
+      return false; // nothing usable — caller seeds a default test
     }
 
+    loadTestIntoGlobals(getCurrentTest());
+    applyDetailsCollapsed();
     switchTab(state.activeTab || "setup");
     return true;
   }
@@ -216,42 +237,118 @@
       .filter(Boolean);
   }
 
-  function buildGrid() {
-    const names = parseNames(els.classList.value);
-    numQuestions = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 1));
+  // ---- multi-test management ----
+  function genId() {
+    return "t" + (++testCounter) + "_" + new Date().getTime();
+  }
 
-    if (names.length === 0) {
-      clearAll();
-      return;
-    }
+  function makeTest(name, nq, names) {
+    const q = Math.max(1, Math.min(100, nq || 1));
+    return {
+      id: genId(),
+      name: (name || "Untitled test").trim() || "Untitled test",
+      numQuestions: q,
+      students: names.map((n) => ({ name: n, marks: new Array(q).fill("none"), done: false })),
+      pinnedIndex: null,
+      sheetCollapsed: false,
+    };
+  }
 
-    students = names.map((name) => ({
-      name,
-      marks: new Array(numQuestions).fill("none"),
-      done: false,
-    }));
+  function getCurrentTest() {
+    return tests.find((t) => t.id === currentTestId) || null;
+  }
 
-    resetPin();
+  // Write the live working globals back into the current test object.
+  function syncCurrentTest() {
+    const t = getCurrentTest();
+    if (!t) return;
+    t.students = students;
+    t.numQuestions = numQuestions;
+    t.pinnedIndex = pinnedIndex;
+    t.sheetCollapsed = sheetCollapsed;
+  }
+
+  // Point the working globals at a test and render the whole UI for it.
+  function loadTestIntoGlobals(t) {
+    students = t.students;
+    numQuestions = t.numQuestions;
+    pinnedIndex = (t.pinnedIndex != null && t.students[t.pinnedIndex]) ? t.pinnedIndex : null;
+    sheetCollapsed = !!t.sheetCollapsed;
+    renderCurrentTest();
+  }
+
+  function renderCurrentTest() {
     renderHead();
     renderBody();
-    els.gradeTable.hidden = false;
-    els.emptyState.hidden = true;
+    els.gradeTable.hidden = students.length === 0;
+    els.emptyState.hidden = students.length !== 0;
     els.analysisPanel.hidden = false;
     els.detailsPanel.hidden = false;
     els.analysisEmpty.hidden = true;
+    if (pinnedIndex != null) renderPinned();
+    else els.pinnedPanel.hidden = true;
+    applySheetCollapsed();
     syncTestTitle();
     updateAnalysis();
+    renderTestOptions();
+  }
+
+  function renderTestOptions() {
+    const opts = tests
+      .map((t) => `<option value="${t.id}">${escapeHtml(t.name || "Untitled")}</option>`)
+      .join("");
+    [els.gradeTestSelect, els.analysisTestSelect].forEach((sel) => {
+      sel.innerHTML = opts;
+      sel.value = currentTestId;
+    });
+  }
+
+  function switchTest(id) {
+    if (!id || id === currentTestId) return;
+    syncCurrentTest();
+    currentTestId = id;
+    const t = getCurrentTest();
+    if (t) loadTestIntoGlobals(t);
     persist();
   }
 
-  function resetPin() {
-    pinnedIndex = null;
-    sheetCollapsed = false;
-    if (els.pinnedPanel) els.pinnedPanel.hidden = true;
-    applySheetCollapsed();
+  function createTest() {
+    const names = parseNames(els.classList.value);
+    if (!names.length) {
+      alert("Add at least one student name to create a test.");
+      return;
+    }
+    const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 1));
+    syncCurrentTest();
+    const t = makeTest(els.testName.value, nq, names);
+    tests.push(t);
+    currentTestId = t.id;
+    loadTestIntoGlobals(t);
+    switchTab("grade");
+    persist();
   }
 
-  // Reset every mark and Done flag, keeping the roster and question count.
+  function seedDefaultTest() {
+    els.testName.value = "Quiz 1";
+    els.numQuestions.value = 10;
+    els.classList.value = SAMPLE_NAMES.join("\n");
+    const t = makeTest("Quiz 1", 10, SAMPLE_NAMES);
+    tests = [t];
+    currentTestId = t.id;
+    loadTestIntoGlobals(t);
+    persist();
+  }
+
+  // The Setup-tab "Clear" button just clears the new-test form fields.
+  function clearSetupForm() {
+    els.testName.value = "";
+    els.classList.value = "";
+    els.numQuestions.value = 10;
+    els.testName.focus();
+    persist();
+  }
+
+  // Reset every mark and Done flag for the current test, keeping the roster.
   function clearMarks() {
     if (!students.length) return;
     if (!window.confirm("Clear all marks and Done flags for every student? The roster and questions stay.")) return;
@@ -262,20 +359,6 @@
     renderBody();
     if (pinnedIndex != null) renderPinned();
     updateAnalysis();
-    persist();
-  }
-
-  function clearAll() {
-    students = [];
-    resetPin();
-    els.gradeBody.innerHTML = "";
-    els.gradeHead.innerHTML = "";
-    els.gradeFoot.innerHTML = "";
-    els.gradeTable.hidden = true;
-    els.emptyState.hidden = false;
-    els.analysisPanel.hidden = true;
-    els.detailsPanel.hidden = true;
-    els.analysisEmpty.hidden = false;
     persist();
   }
 
@@ -802,8 +885,9 @@
   }
 
   function buildCsv() {
+    const t = getCurrentTest();
     const rows = [];
-    rows.push(["Test Name", els.testName.value.trim()]);
+    rows.push(["Test Name", (t && t.name ? t.name : "").trim()]);
     rows.push(["Questions", String(numQuestions)]);
     rows.push([]); // spacer
 
@@ -841,7 +925,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = safeFilename(els.testName.value);
+    a.download = safeFilename(getCurrentTest() ? getCurrentTest().name : "grading-export");
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -930,24 +1014,23 @@
       roster.push({ name: sName, marks, done });
     }
 
-    // Apply loaded state.
-    numQuestions = qCount;
-    students = roster;
-    resetPin();
-    els.testName.value = name;
-    els.numQuestions.value = qCount;
-    els.classList.value = roster.map((s) => s.name).join("\n");
+    if (!roster.length) throw new Error("no student rows found.");
 
-    renderHead();
-    renderBody();
-    els.gradeTable.hidden = roster.length === 0;
-    els.emptyState.hidden = roster.length !== 0;
-    els.analysisPanel.hidden = false;
-    els.detailsPanel.hidden = false;
-    els.analysisEmpty.hidden = true;
-    syncTestTitle();
-    updateAnalysis();
+    // Create a NEW test from the imported file and switch to it.
+    const t = {
+      id: genId(),
+      name: name || "Imported test",
+      numQuestions: qCount,
+      students: roster,
+      pinnedIndex: null,
+      sheetCollapsed: false,
+    };
+    syncCurrentTest();
+    tests.push(t);
+    currentTestId = t.id;
+    loadTestIntoGlobals(t);
     switchTab("grade");
+    persist();
   }
 
   // -------------------------------------------------------------------------
@@ -1093,7 +1176,8 @@
       yR = section(M + col2 + 20, y, col2, "Students needing attention", listText(els.strugglingList));
       y = Math.max(yL, yR);
 
-      const base = (els.testName.value || "grading-export").trim().replace(/[\\/:*?"<>|]/g, "-");
+      const tName = getCurrentTest() ? getCurrentTest().name : "grading-export";
+      const base = (tName || "grading-export").trim().replace(/[\\/:*?"<>|]/g, "-");
       const fname = `${base || "grading-export"} ${dateStr()} analysis.pdf`;
       doc.save(fname);
       try { window.open(doc.output("bloburl"), "_blank"); } catch (e) { /* popup blocked */ }

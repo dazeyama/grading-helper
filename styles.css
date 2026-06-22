@@ -124,6 +124,15 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .chip.wrong { background: var(--wrong-bg); color: var(--wrong); }
 .chip.none { background: var(--none-bg); color: var(--muted); }
 
+/* ---------- test switcher ---------- */
+.test-switcher { display: flex; align-items: center; gap: 0.6rem; }
+.test-switcher label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.test-switcher select {
+  font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--border);
+  border-radius: 8px; background: #fff; color: var(--ink); min-width: 200px; cursor: pointer;
+}
+.test-switcher select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
 /* ---------- pinned student ---------- */
 .pinned-panel { padding: 0.9rem 1rem 1rem; border-color: var(--accent); }
 .pinned-bar { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 0.7rem; flex-wrap: wrap; }

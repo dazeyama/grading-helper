@@ -45,7 +45,7 @@
             <label for="numQuestions"># of questions</label>
             <input id="numQuestions" type="number" min="1" max="100" value="10" />
           </div>
-          <button id="buildBtn" class="btn primary">Build Grid</button>
+          <button id="buildBtn" class="btn primary">Create Test</button>
           <button id="clearBtn" class="btn ghost">Clear</button>
         </div>
       </div>
@@ -54,6 +54,11 @@
 
     <!-- ===== Grade tab ===== -->
     <div class="tab-pane" data-pane="grade">
+
+    <div class="test-switcher">
+      <label for="gradeTestSelect">Test</label>
+      <select id="gradeTestSelect"></select>
+    </div>
 
     <!-- Pinned student -->
     <section class="panel pinned-panel" id="pinnedPanel" hidden>
@@ -87,15 +92,21 @@
         </table>
       </div>
       <div id="emptyState" class="empty-state">
-        Paste a class list and click <strong>Build Grid</strong> to begin.
+        Add a class list on the <strong>Setup</strong> tab and click <strong>Create Test</strong> to begin.
       </div>
     </section>
     </div><!-- /grade pane -->
 
     <!-- ===== Analysis tab ===== -->
     <div class="tab-pane" data-pane="analysis">
+
+    <div class="test-switcher">
+      <label for="analysisTestSelect">Test</label>
+      <select id="analysisTestSelect"></select>
+    </div>
+
     <div id="analysisEmpty" class="panel empty-state">
-      Build a grid on the <strong>Grade</strong> tab to see live analysis.
+      Create a test on the <strong>Setup</strong> tab to see live analysis.
     </div>
     <!-- Live analysis — top "hero" panel (always visible) -->
     <section class="panel analysis analysis-hero" id="analysisPanel" hidden>

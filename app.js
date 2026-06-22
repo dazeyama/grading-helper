@@ -682,15 +682,10 @@
     // Tooltip lists the students in each band, one per line.
     const sliceTitle = (b) => escapeHtml(`${b.label}:\n` + b.names.join("\n"));
 
-    const sliceLabel = (x, y, count, size) =>
-      `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" ` +
-      `font-size="${size}" font-weight="700" fill="#fff" pointer-events="none">${count}</text>`;
-
     const slices = buckets.filter((b) => b.count > 0);
     if (slices.length === 1) {
       els.scorePie.innerHTML =
-        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}" data-tip="${sliceTitle(slices[0])}"/>` +
-        sliceLabel(cx, cy, slices[0].count, 18);
+        `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${slices[0].color}" data-tip="${sliceTitle(slices[0])}"/>`;
       return;
     }
 
@@ -705,9 +700,6 @@
       svg += `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} ` +
         `A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" ` +
         `fill="${b.color}" data-tip="${sliceTitle(b)}"></path>`;
-      const mid = angle + sweep / 2;
-      const lr = r * 0.62;
-      svg += sliceLabel((cx + lr * Math.cos(mid)).toFixed(1), (cy + lr * Math.sin(mid)).toFixed(1), b.count, 14);
       angle = end;
     });
     els.scorePie.innerHTML = svg;

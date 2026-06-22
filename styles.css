@@ -185,6 +185,19 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 
 /* ---------- analysis ---------- */
 .analysis h2 { margin: 0 0 0.8rem; font-size: 1.1rem; }
+
+/* auto-generated insight highlights */
+.insights { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+.insight {
+  flex: 1 1 240px; padding: 0.55rem 0.8rem; border-radius: 8px;
+  font-size: 0.88rem; background: #f7f9fc;
+  border: 1px solid var(--border); border-left: 4px solid var(--muted);
+}
+.insight.tone-good { border-left-color: var(--correct); background: var(--correct-bg); }
+.insight.tone-bad  { border-left-color: var(--wrong); background: var(--wrong-bg); }
+.insight.tone-warn { border-left-color: #e0a400; background: #fdf4dc; }
+.insight.tone-info { border-left-color: var(--accent); }
+
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; }
 .stat-card {
   background: #f7f9fc; border: 1px solid var(--border); border-radius: 10px;

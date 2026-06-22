@@ -18,7 +18,8 @@
     [
       "classList", "numQuestions", "assignmentName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
-      "analysisPanel", "analysisEmpty", "statCards", "hardestList", "strugglingList",
+      "analysisPanel", "analysisEmpty", "statCards", "insightStrip",
+      "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
@@ -213,28 +214,19 @@
   }
 
   function updateAnalysis() {
-    // Class-wide stat cards
-    let totalCorrect = 0, totalAttempted = 0, fullyDone = 0;
+    // ---- per-student ----
+    let totalCorrect = 0, totalAttempted = 0, totalWrong = 0, fullyDone = 0;
     const perStudent = students.map((stu) => {
       const s = studentStats(stu);
       totalCorrect += s.correct;
       totalAttempted += s.attempted;
+      totalWrong += s.wrong;
       if (stu.done) fullyDone++;
       return { name: stu.name, done: stu.done, ...s };
     });
-    const classPct = totalAttempted ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
+    const gradedStudents = perStudent.filter((s) => s.attempted > 0);
 
-    els.statCards.innerHTML = [
-      card(students.length, "Students"),
-      card(numQuestions, "Questions"),
-      card(classPct + "%", "Class average"),
-      card(fullyDone + "/" + students.length, "Fully graded"),
-    ].join("");
-
-    // Score-distribution pie (only rows marked Done that have any marks)
-    renderScorePie(perStudent.filter((s) => s.done && s.attempted > 0));
-
-    // Per-question stats (% correct), used by the bar chart and hardest/easiest.
+    // ---- per-question ----
     const perQuestion = [];
     for (let q = 0; q < numQuestions; q++) {
       let correct = 0, attempted = 0;
@@ -243,27 +235,90 @@
         else if (stu.marks[q] === "wrong") attempted++;
       });
       perQuestion.push({
-        q: q + 1,
-        correct,
-        attempted,
+        q: q + 1, correct, attempted,
+        blanks: students.length - attempted,
         pct: attempted ? Math.round((correct / attempted) * 100) : null,
       });
     }
+    const gradedQs = perQuestion.filter((s) => s.attempted > 0);
+
+    // ---- derived metrics ----
+    const pcts = gradedStudents.map((s) => s.pct).sort((a, b) => a - b);
+    const n = pcts.length;
+    const meanPct = n ? Math.round(pcts.reduce((a, b) => a + b, 0) / n) : null;
+    const medianPct = !n ? null
+      : n % 2 ? pcts[(n - 1) / 2]
+      : Math.round((pcts[n / 2 - 1] + pcts[n / 2]) / 2);
+    const lowest = n ? pcts[0] : null;
+    const highest = n ? pcts[n - 1] : null;
+
+    const meetsCount = gradedStudents.filter((s) => s.pct >= 70).length;
+    const nearlyCount = gradedStudents.filter((s) => s.pct >= 51 && s.pct < 70).length;
+    const notMeetCount = gradedStudents.filter((s) => s.pct <= 50).length;
+
+    const totalCells = students.length * numQuestions;
+    const blanks = totalCells - totalAttempted;
+    const participation = totalCells ? Math.round((totalAttempted / totalCells) * 100) : 0;
+    const donePct = students.length ? Math.round((fullyDone / students.length) * 100) : 0;
+
+    // ---- stat cards ----
+    const pc = (v) => (v === null ? "—" : v + "%");
+    els.statCards.innerHTML = [
+      card(students.length, "Students"),
+      card(numQuestions, "Questions"),
+      card(pc(meanPct), "Class average", "Mean of student scores (graded only)"),
+      card(pc(medianPct), "Median score"),
+      card(n ? lowest + "–" + highest + "%" : "—", "Range", "Lowest to highest score"),
+      card(n ? `${meetsCount}/${n}` : "—", "Meet (≥70%)", "Students at or above 70%"),
+      card(participation + "%", "Participation", "Cells marked ✓/✗ out of all cells"),
+      card(`${fullyDone}/${students.length}`, "Graded", "Rows marked Done"),
+    ].join("");
+
+    // ---- insights strip (auto-generated highlights) ----
+    const ins = [];
+    ins.push({ tone: "info", text: `Grading ${donePct}% complete — ${fullyDone} of ${students.length} marked done.` });
+    if (n) {
+      ins.push({ tone: notMeetCount > meetsCount ? "warn" : "good",
+        text: `${meetsCount} meet, ${nearlyCount} nearly, ${notMeetCount} do not meet (of ${n} graded).` });
+    }
+    if (gradedQs.length) {
+      const worst = gradedQs.slice().sort((a, b) => a.pct - b.pct)[0];
+      ins.push({ tone: worst.pct <= 50 ? "bad" : "info",
+        text: `Toughest question: Q${worst.q} at ${worst.pct}% correct.` });
+      const aced = gradedQs.filter((q) => q.pct === 100).length;
+      if (aced) ins.push({ tone: "good", text: `${aced} question${aced !== 1 ? "s" : ""} the whole class got right.` });
+      const allMissed = gradedQs.filter((q) => q.pct === 0).length;
+      if (allMissed) ins.push({ tone: "bad", text: `${allMissed} question${allMissed !== 1 ? "s" : ""} no one got right.` });
+    }
+    if (blanks > 0) {
+      const mostSkipped = perQuestion.slice().sort((a, b) => b.blanks - a.blanks)[0];
+      ins.push({ tone: "warn",
+        text: `${blanks} blank cell${blanks !== 1 ? "s" : ""}; most skipped is Q${mostSkipped.q} (${mostSkipped.blanks} unanswered).` });
+    }
+    els.insightStrip.innerHTML = ins.length
+      ? ins.map((i) => `<div class="insight tone-${i.tone}">${i.text}</div>`).join("")
+      : '<div class="insight tone-info">Start grading to see insights.</div>';
+
+    // ---- charts ----
+    renderScorePie(perStudent.filter((s) => s.done && s.attempted > 0));
     renderQuestionBars(perQuestion);
 
-    const graded = perQuestion.filter((s) => s.attempted > 0);
-    const hardest = graded.slice().sort((a, b) => a.pct - b.pct).slice(0, 3);
-    const easiest = graded.slice().sort((a, b) => b.pct - a.pct).slice(0, 3);
-    const qLi = (s) => `<li>Q${s.q} <span class="meta">${s.pct}%</span></li>`;
+    // ---- hardest / easiest questions ----
+    const qLi = (s) => `<li>Q${s.q} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`;
     els.hardestList.innerHTML =
-      hardest.map(qLi).join("") || '<li class="meta">No questions graded yet.</li>';
+      gradedQs.slice().sort((a, b) => a.pct - b.pct).slice(0, 3).map(qLi).join("") ||
+      '<li class="meta">No questions graded yet.</li>';
     els.easiestList.innerHTML =
-      easiest.map(qLi).join("") || '<li class="meta">No questions graded yet.</li>';
+      gradedQs.slice().sort((a, b) => b.pct - a.pct).slice(0, 3).map(qLi).join("") ||
+      '<li class="meta">No questions graded yet.</li>';
 
-    // Struggling students (lowest %, among those attempted)
-    const ranked = perStudent.filter((s) => s.attempted > 0).sort((a, b) => a.pct - b.pct);
+    // ---- top performers / needs attention ----
+    const sLi = (s) => `<li>${escapeHtml(s.name)} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`;
+    els.topList.innerHTML =
+      gradedStudents.slice().sort((a, b) => b.pct - a.pct).slice(0, 5).map(sLi).join("") ||
+      '<li class="meta">No students graded yet.</li>';
     els.strugglingList.innerHTML =
-      ranked.slice(0, 5).map((s) => `<li>${escapeHtml(s.name)} <span class="meta">${s.pct}% (${s.correct}/${s.attempted})</span></li>`).join("") ||
+      gradedStudents.slice().sort((a, b) => a.pct - b.pct).slice(0, 5).map(sLi).join("") ||
       '<li class="meta">No students graded yet.</li>';
   }
 
@@ -381,8 +436,9 @@
     els.questionBars.innerHTML = svg;
   }
 
-  function card(num, lbl) {
-    return `<div class="stat-card"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+  function card(num, lbl, tip) {
+    const t = tip ? ` title="${tip}"` : "";
+    return `<div class="stat-card"${t}><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
   }
 
   function escapeHtml(s) {

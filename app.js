@@ -495,7 +495,11 @@
 
   function safeFilename(name) {
     const base = (name || "").trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
-    return (base || "grading-export") + ".csv";
+    const d = new Date();
+    const pad = (x) => String(x).padStart(2, "0");
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+      `${pad(d.getHours())}-${pad(d.getMinutes())}`;
+    return `${base || "grading-export"} ${stamp}.csv`;
   }
 
   function saveCsv() {

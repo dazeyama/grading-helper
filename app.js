@@ -246,9 +246,6 @@
     const pcts = gradedStudents.map((s) => s.pct).sort((a, b) => a - b);
     const n = pcts.length;
     const meanPct = n ? Math.round(pcts.reduce((a, b) => a + b, 0) / n) : null;
-    const medianPct = !n ? null
-      : n % 2 ? pcts[(n - 1) / 2]
-      : Math.round((pcts[n / 2 - 1] + pcts[n / 2]) / 2);
     const lowest = n ? pcts[0] : null;
     const highest = n ? pcts[n - 1] : null;
 
@@ -258,7 +255,6 @@
 
     const totalCells = students.length * numQuestions;
     const blanks = totalCells - totalAttempted;
-    const participation = totalCells ? Math.round((totalAttempted / totalCells) * 100) : 0;
     const donePct = students.length ? Math.round((fullyDone / students.length) * 100) : 0;
 
     // ---- stat cards ----
@@ -267,10 +263,8 @@
       card(students.length, "Students"),
       card(numQuestions, "Questions"),
       card(pc(meanPct), "Class average", "Mean of student scores (graded only)"),
-      card(pc(medianPct), "Median score"),
       card(n ? lowest + "–" + highest + "%" : "—", "Range", "Lowest to highest score"),
       card(n ? `${meetsCount}/${n}` : "—", "Meet (≥70%)", "Students at or above 70%"),
-      card(participation + "%", "Participation", "Cells marked ✓/✗ out of all cells"),
       card(`${fullyDone}/${students.length}`, "Graded", "Rows marked Done"),
     ].join("");
 

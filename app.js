@@ -18,7 +18,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     [
       "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
-      "saveBtn", "loadBtn", "loadFile",
+      "saveBtn", "loadBtn", "loadFile", "clearMarksBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
@@ -29,6 +29,7 @@
 
     els.buildBtn.addEventListener("click", () => { buildGrid(); switchTab("grade"); });
     els.clearBtn.addEventListener("click", clearAll);
+    els.clearMarksBtn.addEventListener("click", clearMarks);
 
     // Keep the Analysis title in sync with the Test name field as it's typed,
     // and persist edits to the setup fields.
@@ -203,6 +204,19 @@
     els.analysisPanel.hidden = false;
     els.analysisEmpty.hidden = true;
     syncTestTitle();
+    updateAnalysis();
+    persist();
+  }
+
+  // Reset every mark and Done flag, keeping the roster and question count.
+  function clearMarks() {
+    if (!students.length) return;
+    if (!window.confirm("Clear all marks and Done flags for every student? The roster and questions stay.")) return;
+    students.forEach((s) => {
+      s.marks = s.marks.map(() => "none");
+      s.done = false;
+    });
+    renderBody();
     updateAnalysis();
     persist();
   }

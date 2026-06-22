@@ -112,6 +112,9 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .btn.ghost:hover { background: #f7f9fc; }
 
 .hint { margin: 0.9rem 0 0; font-size: 0.85rem; color: var(--muted); }
+.grade-toolbar { display: flex; align-items: center; gap: 1rem; }
+.grade-toolbar .hint { margin: 0; }
+.grade-toolbar .btn { margin-left: auto; white-space: nowrap; }
 .chip {
   display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
   font-size: 0.8rem; margin: 0 0.15rem;

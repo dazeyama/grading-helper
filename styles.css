@@ -23,6 +23,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
   /* Lined notebook paper: red margin line + repeating blue rules on cream */
@@ -42,7 +43,7 @@ body {
   display: flex; align-items: center; gap: 0.55rem;
 }
 .tagline { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.95rem; }
-.title-ico { width: 1.4rem; height: 1.4rem; flex: 0 0 auto; }
+.title-ico { width: 96px; height: 96px; flex: 0 0 auto; }
 
 main {
   max-width: 1200px;
@@ -60,16 +61,27 @@ main {
     repeating-linear-gradient(180deg, var(--paper) 0 31px, var(--rule) 31px 32px); }
 }
 
-/* ---------- tabs ---------- */
-.tabs { display: flex; gap: 0.4rem; border-bottom: 2px solid var(--border); }
-.tab {
-  font: inherit; font-weight: 600; font-size: 0.95rem;
-  padding: 0.55rem 1.1rem; border: none; background: transparent;
-  color: var(--muted); cursor: pointer; border-radius: 8px 8px 0 0;
-  margin-bottom: -2px; border-bottom: 2px solid transparent;
+/* ---------- tabs (bold binder tabs on a red shelf) ---------- */
+.tabs { display: flex; gap: 0.55rem; align-items: flex-end; position: relative; }
+.tabs::after {
+  content: ""; position: absolute; bottom: 0; left: -50vw; width: 200vw; height: 0;
+  border-top: 2px solid var(--margin-line);
 }
-.tab:hover { color: var(--ink); background: #eef1f6; }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab {
+  font: inherit; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.01em;
+  padding: 0.5rem 1.5rem; border: none; cursor: pointer; color: #fff;
+  border-radius: 16px 16px 0 0;
+  filter: brightness(0.92) saturate(0.8);
+  transition: padding 0.12s, filter 0.12s;
+}
+.tab[data-tab="setup"] { background: #4f8cff; }
+.tab[data-tab="grade"] { background: #41a85f; }
+.tab[data-tab="analysis"] { background: #e0853a; }
+.tab:hover { filter: none; }
+.tab.active {
+  filter: none; padding-top: 0.8rem;
+  box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.35);
+}
 
 .tab-pane { display: none; flex-direction: column; gap: 1.2rem; }
 .tab-pane.active { display: flex; }

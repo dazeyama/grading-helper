@@ -22,6 +22,11 @@
     <div class="tab-pane active" data-pane="grade">
     <!-- Setup / controls -->
     <section class="panel setup">
+      <label class="field" for="testName">
+        <span class="field-label">Test name</span>
+        <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
+      </label>
+
       <div class="setup-row">
         <div class="field grow">
           <label for="classList">Class list <small>(one student name per line)</small></label>
@@ -33,10 +38,6 @@
           <div class="field">
             <label for="numQuestions"># of questions</label>
             <input id="numQuestions" type="number" min="1" max="100" value="10" />
-          </div>
-          <div class="field">
-            <label for="assignmentName">Assignment</label>
-            <input id="assignmentName" type="text" value="Quiz 1" />
           </div>
           <button id="buildBtn" class="btn primary">Build Grid</button>
           <button id="clearBtn" class="btn ghost">Clear</button>

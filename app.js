@@ -16,7 +16,7 @@
   const els = {};
   document.addEventListener("DOMContentLoaded", function () {
     [
-      "classList", "numQuestions", "assignmentName", "buildBtn", "clearBtn",
+      "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",

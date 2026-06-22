@@ -64,6 +64,8 @@ main {
 }
 
 /* ---------- setup ---------- */
+.setup > .field { margin-bottom: 1rem; }
+.setup > .field input { width: 100%; max-width: 360px; }
 .setup-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; }
 .field.grow { flex: 1 1 320px; }

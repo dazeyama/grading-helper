@@ -353,14 +353,14 @@
     ];
     const total = high + mid + low;
 
-    // Legend
+    // Legend — show each band's live share of graded students (bold)
     els.pieLegend.innerHTML = buckets
-      .map(
-        (b) =>
-          `<li><span class="swatch" style="background:${b.color}"></span>` +
-          `<span>${b.label} <span class="lg-range">(${b.range})</span></span>` +
-          `<span class="lg-count">${b.count}</span></li>`
-      )
+      .map((b) => {
+        const pct = total ? Math.round((b.count / total) * 100) : 0;
+        return `<li title="${b.range}"><span class="swatch" style="background:${b.color}"></span>` +
+          `<span>${b.label} (<strong>${pct}%</strong>)</span>` +
+          `<span class="lg-count">${b.count}</span></li>`;
+      })
       .join("");
 
     // Pie

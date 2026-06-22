@@ -17,6 +17,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     [
       "classList", "numQuestions", "testName", "buildBtn", "clearBtn",
+      "saveBtn", "loadBtn", "loadFile",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "analysisEmpty", "analysisTitle", "statCards", "insightStrip",
       "hardestList", "strugglingList", "topList",
@@ -28,6 +29,11 @@
 
     // Keep the Analysis title in sync with the Test name field as it's typed.
     els.testName.addEventListener("input", syncTestTitle);
+
+    // Save / load (CSV, one test per file)
+    els.saveBtn.addEventListener("click", saveCsv);
+    els.loadBtn.addEventListener("click", () => els.loadFile.click());
+    els.loadFile.addEventListener("change", handleLoadFile);
 
     // Tab switching
     document.querySelectorAll(".tab").forEach((tab) => {
@@ -451,5 +457,156 @@
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // -------------------------------------------------------------------------
+  // Save / load — one test per CSV file
+  // -------------------------------------------------------------------------
+
+  function csvEscape(v) {
+    const s = String(v == null ? "" : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function buildCsv() {
+    const rows = [];
+    rows.push(["Test Name", els.testName.value.trim()]);
+    rows.push(["Questions", String(numQuestions)]);
+    rows.push([]); // spacer
+
+    const header = ["Student"];
+    for (let q = 1; q <= numQuestions; q++) header.push("Q" + q);
+    header.push("Done", "Score");
+    rows.push(header);
+
+    students.forEach((stu) => {
+      const s = studentStats(stu);
+      const row = [stu.name];
+      for (let q = 0; q < numQuestions; q++) {
+        row.push(stu.marks[q] === "correct" ? "Correct" : stu.marks[q] === "wrong" ? "Wrong" : "");
+      }
+      row.push(stu.done ? "Done" : "");
+      row.push(s.attempted ? s.pct + "%" : "");
+      rows.push(row);
+    });
+
+    return rows.map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  }
+
+  function safeFilename(name) {
+    const base = (name || "").trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+    return (base || "grading-export") + ".csv";
+  }
+
+  function saveCsv() {
+    // Prepend a UTF-8 BOM so Excel reads accented names correctly.
+    const blob = new Blob(["﻿" + buildCsv()], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = safeFilename(els.testName.value);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Minimal RFC-4180-ish CSV parser (handles quotes, escaped quotes, CRLF).
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    text = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else field += c;
+    }
+    row.push(field);
+    rows.push(row);
+    return rows;
+  }
+
+  function mapMark(cell) {
+    const v = (cell || "").trim().toLowerCase();
+    if (["correct", "c", "1", "y", "yes", "true", "right", "✓"].includes(v)) return "correct";
+    if (["wrong", "x", "0", "incorrect", "w", "✗"].includes(v)) return "wrong";
+    return "none";
+  }
+
+  function mapDone(cell) {
+    const v = (cell || "").trim().toLowerCase();
+    return ["done", "yes", "y", "true", "1", "✓"].includes(v);
+  }
+
+  function handleLoadFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        loadFromCsv(String(reader.result));
+      } catch (err) {
+        alert("Could not load that file: " + err.message);
+      }
+      els.loadFile.value = ""; // allow re-loading the same file
+    };
+    reader.readAsText(file);
+  }
+
+  function loadFromCsv(text) {
+    const rows = parseCsv(text);
+    let name = "", metaN = null, headerIdx = -1;
+
+    rows.forEach((r, idx) => {
+      const key = (r[0] || "").trim().toLowerCase();
+      if (key === "test name") name = (r[1] || "").trim();
+      else if (key === "questions") metaN = parseInt(r[1], 10);
+      else if (key === "student" && headerIdx === -1) headerIdx = idx;
+    });
+
+    if (headerIdx === -1) throw new Error('no "Student" header row found.');
+
+    const header = rows[headerIdx].map((h) => (h || "").trim().toLowerCase());
+    const doneCol = header.indexOf("done");
+    let qCount;
+    if (metaN && !isNaN(metaN) && metaN > 0) qCount = metaN;
+    else if (doneCol > 1) qCount = doneCol - 1; // columns between Student and Done
+    else qCount = header.length - 1 - (header[header.length - 1] === "score" ? 1 : 0);
+    qCount = Math.max(1, qCount);
+
+    const roster = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const sName = (r[0] || "").trim();
+      if (!sName && r.every((c) => !(c || "").trim())) continue; // skip blank lines
+      if (!sName) continue;
+      const marks = [];
+      for (let q = 0; q < qCount; q++) marks.push(mapMark(r[q + 1]));
+      const done = doneCol >= 0 ? mapDone(r[doneCol]) : marks.every((m) => m !== "none");
+      roster.push({ name: sName, marks, done });
+    }
+
+    // Apply loaded state.
+    numQuestions = qCount;
+    students = roster;
+    els.testName.value = name;
+    els.numQuestions.value = qCount;
+    els.classList.value = roster.map((s) => s.name).join("\n");
+
+    renderHead();
+    renderBody();
+    els.gradeTable.hidden = roster.length === 0;
+    els.emptyState.hidden = roster.length !== 0;
+    els.analysisPanel.hidden = false;
+    els.analysisEmpty.hidden = true;
+    syncTestTitle();
+    updateAnalysis();
   }
 })();

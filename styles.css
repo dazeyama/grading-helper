@@ -197,11 +197,11 @@ tbody tr.row-done.band-nearly td  { background: #fdf4dc; }
 tbody tr.row-done.band-notmeet td { background: var(--wrong-bg); }
 tbody tr.row-done.band-none td    { background: var(--none-bg); }
 
-/* The check / X boxes also take the band tint */
-tbody tr.row-done.band-meets .cell   { background: var(--correct-bg); }
-tbody tr.row-done.band-nearly .cell  { background: #fdf4dc; }
-tbody tr.row-done.band-notmeet .cell { background: var(--wrong-bg); }
-tbody tr.row-done.band-none .cell    { background: var(--none-bg); }
+/* The check / X boxes keep their own green/red, with a translucent band wash
+   layered on top so the row reads as highlighted but the marks stay visible. */
+tbody tr.row-done.band-meets .cell   { background-image: linear-gradient(rgba(31, 157, 85, 0.16), rgba(31, 157, 85, 0.16)); }
+tbody tr.row-done.band-nearly .cell  { background-image: linear-gradient(rgba(224, 164, 0, 0.20), rgba(224, 164, 0, 0.20)); }
+tbody tr.row-done.band-notmeet .cell { background-image: linear-gradient(rgba(216, 58, 58, 0.16), rgba(216, 58, 58, 0.16)); }
 
 /* Name stays black, with a band-colored accent bar */
 tbody tr.row-done .name-col { color: var(--ink); }

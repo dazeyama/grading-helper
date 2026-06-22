@@ -424,7 +424,8 @@
     students.forEach((s) => {
       if (s.marks.length > nq) s.marks = s.marks.slice(0, nq);
       while (s.marks.length < nq) s.marks.push("none");
-      s.done = s.marks.every((m) => m !== "none") ? s.done : false;
+      // Re-run auto-done: a row is Done iff every remaining question is marked.
+      s.done = s.marks.every((m) => m !== "none");
     });
     renderHead();
     renderBody();

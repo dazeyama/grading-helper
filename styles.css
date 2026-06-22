@@ -14,6 +14,8 @@
   --none-bg: #f0f2f6;
   --shadow: 0 1px 3px rgba(20, 30, 50, 0.08), 0 6px 18px rgba(20, 30, 50, 0.04);
   --binder: 96px;          /* left writing margin (binder gutter) */
+  --margin-x: 64px;        /* x of the red vertical margin line */
+  --line-start: 220px;     /* y where ruled lines begin (set precisely by JS) */
   --paper: #fcfbf2;
   --rule: #cdddf0;         /* blue horizontal rule */
   --margin-line: #ecb2b6;  /* red vertical margin line */
@@ -21,16 +23,25 @@
 
 * { box-sizing: border-box; }
 
+html { background-color: var(--paper); }
+
 body {
   margin: 0;
+  min-height: 100vh;
   overflow-x: hidden;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
-  /* Lined notebook paper: red margin line + repeating blue rules on cream */
+  /* Lined notebook paper:
+     1) red vertical margin line (full height)
+     2) cream mask hiding rules above the tab shelf (blank top, like real paper)
+     3) blue horizontal rules starting exactly at --line-start (the red shelf) */
   background-color: var(--paper);
   background-image:
-    linear-gradient(90deg, transparent 0 64px, var(--margin-line) 64px 66px, transparent 66px),
-    repeating-linear-gradient(180deg, var(--paper) 0 31px, var(--rule) 31px 32px);
+    linear-gradient(90deg, transparent 0 var(--margin-x), var(--margin-line) var(--margin-x) calc(var(--margin-x) + 2px), transparent calc(var(--margin-x) + 2px)),
+    linear-gradient(180deg, var(--paper) 0 var(--line-start), transparent var(--line-start)),
+    repeating-linear-gradient(180deg, var(--rule) 0 1px, transparent 1px 32px);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-position: 0 0, 0 0, 0 var(--line-start);
 }
 
 .topbar {
@@ -55,10 +66,7 @@ main {
 }
 
 @media (max-width: 700px) {
-  :root { --binder: 40px; }
-  body { background-image:
-    linear-gradient(90deg, transparent 0 26px, var(--margin-line) 26px 28px, transparent 28px),
-    repeating-linear-gradient(180deg, var(--paper) 0 31px, var(--rule) 31px 32px); }
+  :root { --binder: 40px; --margin-x: 26px; }
 }
 
 /* ---------- tabs (bold binder tabs on a red shelf) ---------- */
@@ -392,7 +400,7 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 
 /* ---------- notebook-paper decorations ---------- */
 .binder-holes {
-  position: fixed; left: 22px; top: 0; height: 100vh; width: 26px;
+  position: fixed; left: 22px; top: 32px; height: 100vh; width: 26px;
   display: flex; flex-direction: column; justify-content: space-around;
   padding: 14vh 0; pointer-events: none; z-index: 4;
 }

@@ -89,7 +89,21 @@
 
     // Resume the last session if one was cached; otherwise seed a sample test.
     if (!restoreSession()) seedDefaultTest();
+
+    // Snap the ruled-line grid so the first line lands on the red tab shelf.
+    alignPaperLines();
+    window.addEventListener("resize", alignPaperLines);
+    window.addEventListener("load", alignPaperLines);
   });
+
+  // Position the lined-paper background so ruled lines begin exactly at the
+  // bottom of the tab bar (the red shelf) — blank paper above, lines below.
+  function alignPaperLines() {
+    const tabs = document.querySelector(".tabs");
+    if (!tabs) return;
+    const y = Math.round(tabs.getBoundingClientRect().bottom + window.scrollY);
+    document.documentElement.style.setProperty("--line-start", y + "px");
+  }
 
   // -------------------------------------------------------------------------
   // Custom tooltip — a single floating element driven by [data-tip] attributes.

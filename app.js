@@ -206,7 +206,7 @@
       totalCorrect += s.correct;
       totalAttempted += s.attempted;
       if (stu.done) fullyDone++;
-      return { name: stu.name, ...s };
+      return { name: stu.name, done: stu.done, ...s };
     });
     const classPct = totalAttempted ? Math.round((totalCorrect / totalAttempted) * 100) : 0;
 
@@ -217,8 +217,8 @@
       card(fullyDone + "/" + students.length, "Fully graded"),
     ].join("");
 
-    // Score-distribution pie (only students who participated, attempted > 0)
-    renderScorePie(perStudent.filter((s) => s.attempted > 0));
+    // Score-distribution pie (only rows marked Done that have any marks)
+    renderScorePie(perStudent.filter((s) => s.done && s.attempted > 0));
 
     // Hardest questions (lowest % correct among attempted)
     const qStats = [];

@@ -22,10 +22,17 @@
     <div class="tab-pane active" data-pane="grade">
     <!-- Setup / controls -->
     <section class="panel setup">
-      <label class="field" for="testName">
-        <span class="field-label">Test name</span>
-        <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
-      </label>
+      <div class="setup-top">
+        <label class="field" for="testName">
+          <span class="field-label">Test name</span>
+          <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
+        </label>
+        <div class="save-load">
+          <button id="saveBtn" class="btn ghost" title="Download this test as a .csv file">Save CSV</button>
+          <button id="loadBtn" class="btn ghost" title="Load a test from a .csv file">Load CSV</button>
+          <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
+        </div>
+      </div>
 
       <div class="setup-row">
         <div class="field grow">
@@ -41,11 +48,6 @@
           </div>
           <button id="buildBtn" class="btn primary">Build Grid</button>
           <button id="clearBtn" class="btn ghost">Clear</button>
-          <div class="save-load">
-            <button id="saveBtn" class="btn ghost" title="Download this test as a .csv file">Save CSV</button>
-            <button id="loadBtn" class="btn ghost" title="Load a test from a .csv file">Load CSV</button>
-            <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
-          </div>
         </div>
       </div>
       <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>

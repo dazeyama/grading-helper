@@ -64,8 +64,12 @@ main {
 }
 
 /* ---------- setup ---------- */
-.setup > .field { margin-bottom: 1rem; }
-.setup > .field input { width: 100%; max-width: 360px; }
+.setup-top {
+  display: flex; align-items: flex-end; gap: 1rem;
+  margin-bottom: 1rem; flex-wrap: wrap;
+}
+.setup-top .field { flex: 1 1 240px; }
+.setup-top .field input { width: 100%; max-width: 360px; }
 .setup-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; }
 .field.grow { flex: 1 1 320px; }
@@ -91,8 +95,8 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
   justify-content: flex-end;
 }
 .setup-side .field input { width: 100%; }
-.save-load { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
-.save-load .btn { flex: 1 1 0; padding: 0.5rem 0.5rem; }
+.save-load { display: flex; gap: 0.5rem; margin-left: auto; }
+.save-load .btn { white-space: nowrap; }
 
 .btn {
   font: inherit;

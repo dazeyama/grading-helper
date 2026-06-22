@@ -16,7 +16,8 @@
     "Barbara Liskov", "John von Neumann", "Annie Easley",
   ];
 
-  // Collection of tests. Each: { id, name, numQuestions, students, pinnedIndex, sheetCollapsed }
+  // Collection of tests. Each: { id, name, numQuestions, students }.
+  // Pinned student + sheet-collapse are ephemeral UI state — never stored or persisted.
   let tests = [];
   let currentTestId = null;
   let testCounter = 0;
@@ -137,6 +138,13 @@
   }
 
   function switchTab(name) {
+    // Leaving the Grade tab clears the (ephemeral) pinned student.
+    if (name !== "grade" && pinnedIndex != null) {
+      pinnedIndex = null;
+      els.pinnedPanel.hidden = true;
+      sheetCollapsed = false;
+      applySheetCollapsed();
+    }
     document.querySelectorAll(".tab").forEach((t) =>
       t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tab-pane").forEach((p) =>
@@ -163,8 +171,6 @@
       name: t.name || "Untitled test",
       numQuestions: nq,
       students: studs,
-      pinnedIndex: (t.pinnedIndex != null && studs[t.pinnedIndex]) ? t.pinnedIndex : null,
-      sheetCollapsed: !!t.sheetCollapsed,
     };
   }
 
@@ -176,7 +182,6 @@
         v: 2,
         tests: tests.map((t) => ({
           id: t.id, name: t.name, numQuestions: t.numQuestions,
-          pinnedIndex: t.pinnedIndex, sheetCollapsed: t.sheetCollapsed,
           students: t.students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
         })),
         currentTestId: currentTestId,
@@ -217,8 +222,6 @@
       const t = sanitizeTest({
         name: state.testName || "Quiz 1",
         numQuestions: state.numQuestions,
-        pinnedIndex: state.pinnedIndex,
-        sheetCollapsed: state.sheetCollapsed,
         students: state.students,
       });
       tests = [t];
@@ -262,21 +265,20 @@
   }
 
   // Write the live working globals back into the current test object.
+  // Pin/collapse are intentionally NOT stored — they're ephemeral UI state.
   function syncCurrentTest() {
     const t = getCurrentTest();
     if (!t) return;
     t.students = students;
     t.numQuestions = numQuestions;
-    t.pinnedIndex = pinnedIndex;
-    t.sheetCollapsed = sheetCollapsed;
   }
 
   // Point the working globals at a test and render the whole UI for it.
   function loadTestIntoGlobals(t) {
     students = t.students;
     numQuestions = t.numQuestions;
-    pinnedIndex = (t.pinnedIndex != null && t.students[t.pinnedIndex]) ? t.pinnedIndex : null;
-    sheetCollapsed = !!t.sheetCollapsed;
+    pinnedIndex = null;       // pin never carries across tests
+    sheetCollapsed = false;
     // Mirror the test into the Setup editor form.
     els.testName.value = t.name;
     els.numQuestions.value = t.numQuestions;

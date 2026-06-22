@@ -252,9 +252,9 @@
     });
 
     const buckets = [
-      { label: "Passing", range: "70% and up", count: high, color: "#1f9d55" },
-      { label: "At risk", range: "51–69%", count: mid, color: "#e0a400" },
-      { label: "Needs help", range: "50% and below", count: low, color: "#d83a3a" },
+      { label: "Meets", range: "70% and up", count: high, color: "#1f9d55" },
+      { label: "Nearly meets", range: "51–69%", count: mid, color: "#e0a400" },
+      { label: "Does not meet", range: "50% and below", count: low, color: "#d83a3a" },
     ];
     const total = high + mid + low;
 

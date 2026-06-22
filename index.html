@@ -13,6 +13,13 @@
   </header>
 
   <main>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="grade" role="tab">Grade</button>
+      <button class="tab" data-tab="analysis" role="tab">Analysis</button>
+    </div>
+
+    <!-- ===== Grade tab ===== -->
+    <div class="tab-pane active" data-pane="grade">
     <!-- Setup / controls -->
     <section class="panel setup">
       <div class="setup-row">
@@ -52,7 +59,13 @@
         Paste a class list and click <strong>Build Grid</strong> to begin.
       </div>
     </section>
+    </div><!-- /grade pane -->
 
+    <!-- ===== Analysis tab ===== -->
+    <div class="tab-pane" data-pane="analysis">
+    <div id="analysisEmpty" class="panel empty-state">
+      Build a grid on the <strong>Grade</strong> tab to see live analysis.
+    </div>
     <!-- Live analysis -->
     <section class="panel analysis" id="analysisPanel" hidden>
       <h2>Live Analysis</h2>
@@ -93,6 +106,7 @@
         </div>
       </div>
     </section>
+    </div><!-- /analysis pane -->
   </main>
 
   <footer class="foot">Grading Helper &middot; runs entirely in your browser</footer>

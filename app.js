@@ -18,18 +18,30 @@
     [
       "classList", "numQuestions", "assignmentName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
-      "analysisPanel", "statCards", "hardestList", "strugglingList",
+      "analysisPanel", "analysisEmpty", "statCards", "hardestList", "strugglingList",
       "scorePie", "pieLegend", "questionBars", "easiestList",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     els.buildBtn.addEventListener("click", buildGrid);
     els.clearBtn.addEventListener("click", clearAll);
 
+    // Tab switching
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+    });
+
     // Seed with sample data so the layout is visible immediately.
     els.classList.value =
       "Ada Lovelace\nGrace Hopper\nKatherine Johnson\nAlan Turing\nMargaret Hamilton";
     buildGrid();
   });
+
+  function switchTab(name) {
+    document.querySelectorAll(".tab").forEach((t) =>
+      t.classList.toggle("active", t.dataset.tab === name));
+    document.querySelectorAll(".tab-pane").forEach((p) =>
+      p.classList.toggle("active", p.dataset.pane === name));
+  }
 
   function parseNames(text) {
     return text
@@ -58,6 +70,7 @@
     els.gradeTable.hidden = false;
     els.emptyState.hidden = true;
     els.analysisPanel.hidden = false;
+    els.analysisEmpty.hidden = true;
     updateAnalysis();
   }
 
@@ -69,6 +82,7 @@
     els.gradeTable.hidden = true;
     els.emptyState.hidden = false;
     els.analysisPanel.hidden = true;
+    els.analysisEmpty.hidden = false;
   }
 
   function renderHead() {

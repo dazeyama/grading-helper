@@ -41,6 +41,20 @@ main {
   gap: 1.2rem;
 }
 
+/* ---------- tabs ---------- */
+.tabs { display: flex; gap: 0.4rem; border-bottom: 2px solid var(--border); }
+.tab {
+  font: inherit; font-weight: 600; font-size: 0.95rem;
+  padding: 0.55rem 1.1rem; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; border-radius: 8px 8px 0 0;
+  margin-bottom: -2px; border-bottom: 2px solid transparent;
+}
+.tab:hover { color: var(--ink); background: #eef1f6; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-pane { display: none; flex-direction: column; gap: 1.2rem; }
+.tab-pane.active { display: flex; }
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -99,8 +113,9 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .chip.none { background: var(--none-bg); color: var(--muted); }
 
 /* ---------- grid ---------- */
-.grid-panel { padding: 0; overflow: hidden; }
-.grid-scroll { overflow: auto; max-height: 60vh; }
+.grid-panel { padding: 0; }
+/* No inner scrollbar: the whole table shows and the page grows to fit. */
+.grid-scroll { overflow: visible; }
 .empty-state { padding: 2.5rem 1.2rem; text-align: center; color: var(--muted); }
 
 .grade-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.9rem; }
@@ -162,7 +177,7 @@ tbody tr.row-done .score-pill { opacity: 0.5; }
 }
 
 tfoot td {
-  position: sticky; bottom: 0; background: #f7f9fc;
+  background: #f7f9fc;
   font-weight: 600; text-align: center; padding: 0.45rem 0.3rem;
   color: var(--muted); border-top: 2px solid var(--border); font-size: 0.8rem;
 }

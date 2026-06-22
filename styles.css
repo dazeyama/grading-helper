@@ -299,6 +299,17 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 .pie-legend .lg-count { font-weight: 700; margin-left: auto; font-variant-numeric: tabular-nums; }
 .pie-legend .lg-range { color: var(--muted); font-size: 0.82rem; }
 
+/* Hero charts: larger, more prominent, directly under the title */
+.charts-hero { margin-top: 1.2rem; gap: 1.6rem; }
+.charts-hero .chart-half { padding: 1.5rem; gap: 1.6rem; }
+.charts-hero .pie { width: 220px; height: 220px; }
+.charts-hero .pie-legend { flex-basis: 220px; }
+.charts-hero .pie-legend li { font-size: 1rem; padding: 0.35rem 0; }
+.charts-hero .pie-legend .swatch { width: 16px; height: 16px; }
+.charts-hero .bar-wrap h3 { font-size: 1.05rem; margin-bottom: 0.6rem; }
+.charts-hero .qx-box h4 { font-size: 0.95rem; }
+.charts-hero .qx-box .mini-list { font-size: 0.92rem; }
+
 .analysis-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
 .analysis-box h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
 .mini-list { margin: 0; padding-left: 1.2rem; color: var(--ink); font-size: 0.9rem; }

@@ -313,7 +313,7 @@
       doneTd.appendChild(doneBtn);
       tr.appendChild(doneTd);
 
-      applyDoneStyling(tr, stu.done);
+      applyDoneStyling(tr, stu);
       frag.appendChild(tr);
     });
     els.gradeBody.innerHTML = "";
@@ -336,7 +336,7 @@
     if (tr) {
       const mb = tr.querySelectorAll(".cell")[q];
       if (mb) { mb.className = "cell state-" + next; mb.textContent = GLYPH[next]; }
-      applyDoneStyling(tr, students[r].done);
+      applyDoneStyling(tr, students[r]);
     }
 
     refreshScores();
@@ -349,14 +349,25 @@
   function toggleDone(r) {
     students[r].done = !students[r].done;
     const tr = els.gradeBody.children[r];
-    if (tr) applyDoneStyling(tr, students[r].done);
+    if (tr) applyDoneStyling(tr, students[r]);
     if (pinnedIndex === r) renderPinned();
     updateAnalysis();
     persist();
   }
 
-  function applyDoneStyling(tr, done) {
+  function scoreBand(pct) {
+    if (pct == null) return "none";
+    if (pct >= 70) return "meets";
+    if (pct >= 51) return "nearly";
+    return "notmeet";
+  }
+
+  function applyDoneStyling(tr, stu) {
+    const done = !!stu.done;
     tr.classList.toggle("row-done", done);
+    tr.classList.remove("band-meets", "band-nearly", "band-notmeet", "band-none");
+    if (done) tr.classList.add("band-" + scoreBand(studentStats(stu).pct));
+
     const btn = tr.querySelector(".done-btn");
     if (btn) {
       btn.classList.toggle("is-done", done);
@@ -444,7 +455,7 @@
     doneTd.appendChild(doneBtn);
     tr.appendChild(doneTd);
 
-    applyDoneStyling(tr, stu.done);
+    applyDoneStyling(tr, stu);
     tbody.appendChild(tr);
     table.appendChild(tbody);
 

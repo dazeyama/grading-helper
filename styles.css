@@ -191,11 +191,18 @@ tbody .name-col:hover { color: var(--accent); }
   background: var(--correct-bg); border-color: var(--correct); color: var(--correct);
 }
 
-/* Fully-graded row: slightly greyed, but Done button stays legible */
-tbody tr.row-done td { background: var(--none-bg); }
-tbody tr.row-done .name-col { background: var(--none-bg); color: var(--muted); }
-tbody tr.row-done .cell { opacity: 0.4; }
-tbody tr.row-done .score-pill { opacity: 0.5; }
+/* Fully-graded row: highlighted in the student's meets/nearly/does-not-meet color */
+tbody tr.row-done.band-meets td   { background: var(--correct-bg); }
+tbody tr.row-done.band-nearly td  { background: #fdf4dc; }
+tbody tr.row-done.band-notmeet td { background: var(--wrong-bg); }
+tbody tr.row-done.band-none td    { background: var(--none-bg); }
+
+/* Name fades out but takes the band color, with a matching accent bar */
+tbody tr.row-done .name-col { font-weight: 600; }
+tbody tr.row-done.band-meets .name-col   { color: rgba(31, 157, 85, 0.7);  border-left: 4px solid var(--correct); }
+tbody tr.row-done.band-nearly .name-col  { color: rgba(176, 128, 0, 0.85); border-left: 4px solid #e0a400; }
+tbody tr.row-done.band-notmeet .name-col { color: rgba(216, 58, 58, 0.75); border-left: 4px solid var(--wrong); }
+tbody tr.row-done.band-none .name-col    { color: var(--muted); border-left: 4px solid var(--none); }
 
 /* tri-state cell */
 .cell {

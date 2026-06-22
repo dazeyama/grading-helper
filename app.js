@@ -26,7 +26,7 @@
 
     initTooltip();
 
-    els.buildBtn.addEventListener("click", buildGrid);
+    els.buildBtn.addEventListener("click", () => { buildGrid(); switchTab("grade"); });
     els.clearBtn.addEventListener("click", clearAll);
 
     // Keep the Analysis title in sync with the Test name field as it's typed.
@@ -682,5 +682,6 @@
     els.analysisEmpty.hidden = true;
     syncTestTitle();
     updateAnalysis();
+    switchTab("grade");
   }
 })();

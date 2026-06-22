@@ -14,13 +14,13 @@
 
   <main>
     <div class="tabs" role="tablist">
-      <button class="tab active" data-tab="grade" role="tab">Grade</button>
+      <button class="tab active" data-tab="setup" role="tab">Setup</button>
+      <button class="tab" data-tab="grade" role="tab">Grade</button>
       <button class="tab" data-tab="analysis" role="tab">Analysis</button>
     </div>
 
-    <!-- ===== Grade tab ===== -->
-    <div class="tab-pane active" data-pane="grade">
-    <!-- Setup / controls -->
+    <!-- ===== Setup tab ===== -->
+    <div class="tab-pane active" data-pane="setup">
     <section class="panel setup">
       <div class="setup-top">
         <label class="field" for="testName">
@@ -50,9 +50,13 @@
           <button id="clearBtn" class="btn ghost">Clear</button>
         </div>
       </div>
-      <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
-        <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
     </section>
+    </div><!-- /setup pane -->
+
+    <!-- ===== Grade tab ===== -->
+    <div class="tab-pane" data-pane="grade">
+    <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
+      <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
 
     <!-- Grading grid -->
     <section class="panel grid-panel">

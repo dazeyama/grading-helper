@@ -281,5 +281,4 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 }
 .tooltip.show { opacity: 1; }
 .tooltip[hidden] { display: none; }
-[data-tip] { cursor: help; }
-button[data-tip], svg [data-tip] { cursor: pointer; }
+[data-tip] { cursor: pointer; }

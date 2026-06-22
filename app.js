@@ -42,7 +42,8 @@
       "hardestList", "strugglingList", "topList",
       "scorePie", "pieLegend", "questionBars", "easiestList", "tooltip",
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
-      "sheetToggle", "nameMenu", "pinStudentBtn", "gradeTestSelect", "analysisTestSelect",
+      "sheetToggle", "nameMenu", "pinStudentBtn",
+      "setupTestSelect", "gradeTestSelect", "analysisTestSelect",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
@@ -51,12 +52,13 @@
     els.clearBtn.addEventListener("click", clearSetupForm);
     els.clearMarksBtn.addEventListener("click", clearMarks);
 
-    // Persist edits to the setup (new-test) form fields.
-    els.testName.addEventListener("input", persist);
-    els.classList.addEventListener("input", persist);
-    els.numQuestions.addEventListener("input", persist);
+    // Setup form fields live-edit the SELECTED test.
+    els.testName.addEventListener("input", applyNameEdit);
+    els.classList.addEventListener("input", applyClassListEdit);
+    els.numQuestions.addEventListener("change", applyQuestionCountEdit);
 
-    // Test switcher dropdowns (Grade + Analysis stay in sync)
+    // Test switcher dropdowns (Setup + Grade + Analysis stay in sync)
+    els.setupTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.gradeTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.analysisTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
 
@@ -274,6 +276,10 @@
     numQuestions = t.numQuestions;
     pinnedIndex = (t.pinnedIndex != null && t.students[t.pinnedIndex]) ? t.pinnedIndex : null;
     sheetCollapsed = !!t.sheetCollapsed;
+    // Mirror the test into the Setup editor form.
+    els.testName.value = t.name;
+    els.numQuestions.value = t.numQuestions;
+    els.classList.value = t.students.map((s) => s.name).join("\n");
     renderCurrentTest();
   }
 
@@ -297,7 +303,7 @@
     const opts = tests
       .map((t) => `<option value="${t.id}">${escapeHtml(t.name || "Untitled")}</option>`)
       .join("");
-    [els.gradeTestSelect, els.analysisTestSelect].forEach((sel) => {
+    [els.setupTestSelect, els.gradeTestSelect, els.analysisTestSelect].forEach((sel) => {
       sel.innerHTML = opts;
       sel.value = currentTestId;
     });
@@ -312,26 +318,22 @@
     persist();
   }
 
+  // "Create Test" adds a fresh, empty test and selects it; fill it in via the
+  // live Setup form (Test name + Class list edit the selected test directly).
   function createTest() {
-    const names = parseNames(els.classList.value);
-    if (!names.length) {
-      alert("Add at least one student name to create a test.");
-      return;
-    }
-    const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 1));
+    const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 10));
     syncCurrentTest();
-    const t = makeTest(els.testName.value, nq, names);
+    const t = makeTest("New Test", nq, []);
     tests.push(t);
     currentTestId = t.id;
     loadTestIntoGlobals(t);
-    switchTab("grade");
+    switchTab("setup");
+    els.testName.focus();
+    els.testName.select();
     persist();
   }
 
   function seedDefaultTest() {
-    els.testName.value = "Quiz 1";
-    els.numQuestions.value = 10;
-    els.classList.value = SAMPLE_NAMES.join("\n");
     const t = makeTest("Quiz 1", 10, SAMPLE_NAMES);
     tests = [t];
     currentTestId = t.id;
@@ -339,13 +341,69 @@
     persist();
   }
 
-  // The Setup-tab "Clear" button just clears the new-test form fields.
+  // ---- live editing of the selected test via the Setup form ----
+  function applyNameEdit() {
+    const t = getCurrentTest();
+    if (!t) return;
+    t.name = els.testName.value;
+    renderTestOptions();
+    syncTestTitle();
+    persist();
+  }
+
+  function applyClassListEdit() {
+    const t = getCurrentTest();
+    if (!t) return;
+    const names = parseNames(els.classList.value);
+    // Reuse existing student objects by name so marks survive add/remove/reorder.
+    const pool = {};
+    students.forEach((s) => { (pool[s.name] = pool[s.name] || []).push(s); });
+    const pinnedStudent = pinnedIndex != null ? students[pinnedIndex] : null;
+    students = names.map((n) =>
+      (pool[n] && pool[n].length) ? pool[n].shift()
+        : { name: n, marks: new Array(numQuestions).fill("none"), done: false });
+    t.students = students;
+    pinnedIndex = pinnedStudent ? students.indexOf(pinnedStudent) : -1;
+    if (pinnedIndex < 0) { pinnedIndex = null; els.pinnedPanel.hidden = true; }
+    renderBody();
+    if (pinnedIndex != null) renderPinned();
+    updateAnalysis();
+    persist();
+  }
+
+  function applyQuestionCountEdit() {
+    const t = getCurrentTest();
+    if (!t) return;
+    const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 1));
+    if (nq === numQuestions) return;
+    if (nq < numQuestions &&
+        !window.confirm(`Reduce to ${nq} questions? Any marks for questions ${nq + 1}–${numQuestions} will be removed.`)) {
+      els.numQuestions.value = numQuestions;
+      return;
+    }
+    numQuestions = nq;
+    t.numQuestions = nq;
+    students.forEach((s) => {
+      if (s.marks.length > nq) s.marks = s.marks.slice(0, nq);
+      while (s.marks.length < nq) s.marks.push("none");
+      s.done = s.marks.every((m) => m !== "none") ? s.done : false;
+    });
+    renderHead();
+    renderBody();
+    if (pinnedIndex != null) renderPinned();
+    updateAnalysis();
+    persist();
+  }
+
+  // The Setup-tab "Clear" button empties the selected test's name and roster.
   function clearSetupForm() {
+    if (!getCurrentTest()) return;
+    if (students.length && !window.confirm("Clear this test's name and class list?")) return;
     els.testName.value = "";
     els.classList.value = "";
-    els.numQuestions.value = 10;
+    applyNameEdit();
+    applyClassListEdit();
     els.testName.focus();
-    persist();
   }
 
   // Reset every mark and Done flag for the current test, keeping the roster.

@@ -351,9 +351,12 @@
   // "Create Test" adds a fresh, empty test and selects it; fill it in via the
   // live Setup form (Test name + Class list edit the selected test directly).
   function createTest() {
-    const nq = Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 10));
     syncCurrentTest();
-    const t = makeTest("New Test", nq, []);
+    // Carry the roster (and question count) over from the current test.
+    const prev = getCurrentTest();
+    const names = prev ? prev.students.map((s) => s.name) : [];
+    const nq = prev ? prev.numQuestions : Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 10));
+    const t = makeTest("New Test", nq, names);
     tests.push(t);
     currentTestId = t.id;
     loadTestIntoGlobals(t);

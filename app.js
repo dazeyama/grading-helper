@@ -32,8 +32,12 @@
     });
 
     // Seed with sample data so the layout is visible immediately.
-    els.classList.value =
-      "Ada Lovelace\nGrace Hopper\nKatherine Johnson\nAlan Turing\nMargaret Hamilton";
+    els.classList.value = [
+      "Ada Lovelace", "Grace Hopper", "Katherine Johnson", "Alan Turing",
+      "Margaret Hamilton", "Charles Babbage", "Dorothy Vaughan", "Linus Torvalds",
+      "Hedy Lamarr", "Tim Berners-Lee", "Radia Perlman", "Dennis Ritchie",
+      "Barbara Liskov", "John von Neumann", "Annie Easley",
+    ].join("\n");
     buildGrid();
   });
 

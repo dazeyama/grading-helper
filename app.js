@@ -87,6 +87,15 @@
     // Click anywhere else closes the name menu.
     document.addEventListener("click", () => closeNameMenu());
 
+    // Today's date, written out, on the title line.
+    const titleDate = document.getElementById("titleDate");
+    if (titleDate) {
+      const MONTHS = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      const d = new Date();
+      titleDate.textContent = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    }
+
     // Resume the last session if one was cached; otherwise seed a sample test.
     if (!restoreSession()) seedDefaultTest();
 

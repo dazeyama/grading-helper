@@ -45,6 +45,7 @@ body {
 }
 
 .topbar {
+  max-width: 1200px;
   padding: 1.4rem 1.6rem 0.8rem var(--binder);
   background: transparent;
   color: var(--ink);
@@ -55,6 +56,10 @@ body {
 }
 .tagline { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.95rem; }
 .title-ico { width: 96px; height: 96px; flex: 0 0 auto; }
+.title-date {
+  margin-left: auto; font-size: 1.05rem; font-weight: 500;
+  color: var(--muted); white-space: nowrap;
+}
 
 main {
   max-width: 1200px;

@@ -19,7 +19,7 @@
       "classList", "numQuestions", "assignmentName", "buildBtn", "clearBtn",
       "gradeTable", "gradeHead", "gradeBody", "gradeFoot", "emptyState",
       "analysisPanel", "statCards", "hardestList", "strugglingList",
-      "scorePie", "pieLegend",
+      "scorePie", "pieLegend", "questionBars", "easiestList",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     els.buildBtn.addEventListener("click", buildGrid);
@@ -220,20 +220,31 @@
     // Score-distribution pie (only rows marked Done that have any marks)
     renderScorePie(perStudent.filter((s) => s.done && s.attempted > 0));
 
-    // Hardest questions (lowest % correct among attempted)
-    const qStats = [];
+    // Per-question stats (% correct), used by the bar chart and hardest/easiest.
+    const perQuestion = [];
     for (let q = 0; q < numQuestions; q++) {
       let correct = 0, attempted = 0;
       students.forEach((stu) => {
         if (stu.marks[q] === "correct") { correct++; attempted++; }
         else if (stu.marks[q] === "wrong") attempted++;
       });
-      if (attempted) qStats.push({ q: q + 1, pct: Math.round((correct / attempted) * 100), attempted });
+      perQuestion.push({
+        q: q + 1,
+        correct,
+        attempted,
+        pct: attempted ? Math.round((correct / attempted) * 100) : null,
+      });
     }
-    qStats.sort((a, b) => a.pct - b.pct);
+    renderQuestionBars(perQuestion);
+
+    const graded = perQuestion.filter((s) => s.attempted > 0);
+    const hardest = graded.slice().sort((a, b) => a.pct - b.pct).slice(0, 3);
+    const easiest = graded.slice().sort((a, b) => b.pct - a.pct).slice(0, 3);
+    const qLi = (s) => `<li>Q${s.q} <span class="meta">${s.pct}%</span></li>`;
     els.hardestList.innerHTML =
-      qStats.slice(0, 5).map((s) => `<li>Question ${s.q} <span class="meta">${s.pct}% correct</span></li>`).join("") ||
-      '<li class="meta">No questions graded yet.</li>';
+      hardest.map(qLi).join("") || '<li class="meta">No questions graded yet.</li>';
+    els.easiestList.innerHTML =
+      easiest.map(qLi).join("") || '<li class="meta">No questions graded yet.</li>';
 
     // Struggling students (lowest %, among those attempted)
     const ranked = perStudent.filter((s) => s.attempted > 0).sort((a, b) => a.pct - b.pct);
@@ -297,6 +308,63 @@
       angle = end;
     });
     els.scorePie.innerHTML = svg;
+  }
+
+  // --- per-question % correct bar chart (pure SVG, no dependencies) ---
+  function barColor(pct) {
+    if (pct === null) return "#cdd3dd";
+    if (pct >= 70) return "#1f9d55";
+    if (pct >= 51) return "#e0a400";
+    return "#d83a3a";
+  }
+
+  function renderQuestionBars(perQuestion) {
+    const W = 340, H = 170;
+    const m = { top: 10, right: 6, bottom: 22, left: 26 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+    const n = perQuestion.length;
+
+    const y = (pct) => m.top + plotH * (1 - pct / 100);
+    let svg = "";
+
+    // Gridlines + Y labels at 0/50/100
+    [0, 50, 100].forEach((g) => {
+      const gy = y(g);
+      svg += `<line x1="${m.left}" y1="${gy.toFixed(1)}" x2="${W - m.right}" y2="${gy.toFixed(1)}" ` +
+        `stroke="#e2e7ef" stroke-width="1"/>`;
+      svg += `<text x="${m.left - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end" ` +
+        `font-size="8" fill="#9aa3b2">${g}</text>`;
+    });
+
+    // Bars
+    const slot = plotW / Math.max(1, n);
+    const bw = Math.min(slot * 0.7, 26);
+    const labelEvery = n <= 20 ? 1 : Math.ceil(n / 15);
+
+    perQuestion.forEach((s, i) => {
+      const cx = m.left + slot * (i + 0.5);
+      const x = cx - bw / 2;
+      const pct = s.pct === null ? 0 : s.pct;
+      const h = plotH * (pct / 100);
+      const top = m.top + plotH - h;
+      const title = s.attempted
+        ? `Q${s.q}: ${s.pct}% (${s.correct}/${s.attempted})`
+        : `Q${s.q}: not graded`;
+      svg += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" ` +
+        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct)}">` +
+        `<title>${title}</title></rect>`;
+      if (i % labelEvery === 0) {
+        svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
+          `font-size="8" fill="#6b7686">${s.q}</text>`;
+      }
+    });
+
+    // Axes
+    svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="#aab2bf" stroke-width="1"/>`;
+    svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#aab2bf" stroke-width="1"/>`;
+
+    els.questionBars.innerHTML = svg;
   }
 
   function card(num, lbl) {

@@ -45,6 +45,9 @@
       "pinnedPanel", "pinnedName", "pinnedGrid", "gridPanel", "sheetHeader",
       "sheetToggle", "nameMenu", "pinStudentBtn",
       "setupTestSelect", "gradeTestSelect", "analysisTestSelect", "deleteTestBtn",
+      "compareEmpty", "compareBody", "compareASelect", "compareBSelect", "compareSwapBtn",
+      "compareTitle", "compareSame", "compareCards", "compareBands", "compareBars",
+      "compareBarsLegend", "compareDetails", "compareDetailsHeader", "compareInsights", "compareRows",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
@@ -63,6 +66,16 @@
     els.gradeTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.analysisTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.deleteTestBtn.addEventListener("click", deleteTest);
+
+    // Compare tab (read-only; its picks are ephemeral and never saved)
+    els.compareASelect.addEventListener("change", (e) => { compareAId = e.target.value; renderCompare(); });
+    els.compareBSelect.addEventListener("change", (e) => { compareBId = e.target.value; renderCompare(); });
+    els.compareSwapBtn.addEventListener("click", () => {
+      const a = compareAId; compareAId = compareBId; compareBId = a;
+      renderCompare();
+    });
+    els.compareDetailsHeader.addEventListener("click", () =>
+      els.compareDetails.classList.toggle("collapsed"));
 
     // Save / load (CSV, one test per file)
     els.saveBtn.addEventListener("click", saveCsv);
@@ -172,6 +185,7 @@
       t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tab-pane").forEach((p) =>
       p.classList.toggle("active", p.dataset.pane === name));
+    if (name === "compare") renderCompare();
     persist();
   }
 
@@ -1018,6 +1032,278 @@
     svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
 
     els.questionBars.innerHTML = svg;
+  }
+
+  // -------------------------------------------------------------------------
+  // Compare tab — two tests side by side (e.g. pre-test vs post-test).
+  // Read-only: never modifies tests or saved data. Students match by name.
+  // -------------------------------------------------------------------------
+  let compareAId = null, compareBId = null;
+
+  const BANDS = ["notmeet", "nearly", "meets"]; // low -> high
+  const BAND_LABEL = { meets: "Meets", nearly: "Nearly meets", notmeet: "Does not meet" };
+  const BAND_COLOR = { meets: "#1f9d55", nearly: "#e0a400", notmeet: "#d83a3a" };
+  const CMP_BEFORE_COLOR = "#b3c3e0", CMP_AFTER_COLOR = "#8b5fcf";
+
+  const nameKey = (s) => String(s || "").trim().toLowerCase();
+
+  function summarizeTest(t) {
+    const perStudent = t.students.map((stu) => ({ name: stu.name, ...studentStats(stu) }));
+    const graded = perStudent.filter((s) => s.attempted > 0);
+    const pcts = graded.map((s) => s.pct);
+    const n = pcts.length;
+    const bandNames = { meets: [], nearly: [], notmeet: [] };
+    graded.forEach((s) => bandNames[scoreBand(s.pct)].push(s.name));
+
+    const perQuestion = [];
+    for (let q = 0; q < t.numQuestions; q++) {
+      let correct = 0, half = 0, attempted = 0;
+      t.students.forEach((stu) => {
+        const m = stu.marks[q];
+        if (m === "correct") { correct++; attempted++; }
+        else if (m === "half") { half++; attempted++; }
+        else if (m === "wrong") attempted++;
+      });
+      perQuestion.push(attempted ? Math.round(((correct + 0.5 * half) / attempted) * 100) : null);
+    }
+
+    const byName = {};
+    perStudent.forEach((s) => { const k = nameKey(s.name); if (!(k in byName)) byName[k] = s; });
+
+    return {
+      label: disambiguatedName(t),
+      numQuestions: t.numQuestions,
+      perStudent, byName, n, bandNames, perQuestion,
+      mean: n ? Math.round(pcts.reduce((a, b) => a + b, 0) / n) : null,
+      low: n ? Math.min.apply(null, pcts) : null,
+      high: n ? Math.max.apply(null, pcts) : null,
+      meets: bandNames.meets.length,
+      meetsPct: n ? Math.round((bandNames.meets.length / n) * 100) : null,
+    };
+  }
+
+  // Coloured change chip: "▲ +12 pts", "▼ −5 pts", "no change".
+  function deltaChip(a, b, unit) {
+    if (a == null || b == null) return '<span class="delta flat">—</span>';
+    const d = b - a;
+    if (d > 0) return `<span class="delta up">▲ +${d}${unit}</span>`;
+    if (d < 0) return `<span class="delta down">▼ −${-d}${unit}</span>`;
+    return '<span class="delta flat">no change</span>';
+  }
+
+  function cmpCard(lbl, before, after, delta, sub, tip) {
+    const t = tip ? ` data-tip="${escapeHtml(tip)}"` : "";
+    return `<div class="stat-card cmp-card"${t}><div class="lbl">${lbl}</div>` +
+      `<div class="cmp-vals"><span class="cmp-before">${before}</span><span class="cmp-to">→</span>` +
+      `<span class="num">${after}</span></div>` +
+      (sub ? `<div class="cmp-sub">${sub}</div>` : "") + delta + "</div>";
+  }
+
+  function renderCompare() {
+    syncCurrentTest();
+    const enough = tests.length >= 2;
+    els.compareEmpty.hidden = enough;
+    els.compareBody.hidden = !enough;
+    if (!enough) return;
+
+    // Default: After = the test being worked on, Before = the one just before it.
+    const has = (id) => tests.some((t) => t.id === id);
+    if (!has(compareBId)) compareBId = currentTestId;
+    if (!has(compareAId)) {
+      const i = tests.findIndex((t) => t.id === compareBId);
+      compareAId = tests[i > 0 ? i - 1 : 1].id;
+    }
+
+    const opts = tests
+      .map((t) => `<option value="${t.id}">${escapeHtml(disambiguatedName(t))}</option>`)
+      .join("");
+    els.compareASelect.innerHTML = opts;
+    els.compareBSelect.innerHTML = opts;
+    els.compareASelect.value = compareAId;
+    els.compareBSelect.value = compareBId;
+
+    const A = summarizeTest(tests.find((t) => t.id === compareAId));
+    const B = summarizeTest(tests.find((t) => t.id === compareBId));
+
+    els.compareTitle.innerHTML =
+      `${escapeHtml(A.label)} <span class="cmp-arrow">→</span> ${escapeHtml(B.label)}`;
+    els.compareSame.hidden = compareAId !== compareBId;
+
+    // ---- stat cards ----
+    const pc = (v) => (v == null ? "—" : v + "%");
+    els.compareCards.innerHTML = [
+      cmpCard("Class average", pc(A.mean), pc(B.mean), deltaChip(A.mean, B.mean, " pts"),
+        "", "Mean of student scores (graded only)"),
+      cmpCard("Students meeting", pc(A.meetsPct), pc(B.meetsPct), deltaChip(A.meetsPct, B.meetsPct, " pts"),
+        `${A.meets} of ${A.n} → ${B.meets} of ${B.n}`, "Share of graded students at or above 70%"),
+      cmpCard("Lowest score", pc(A.low), pc(B.low), deltaChip(A.low, B.low, " pts")),
+      cmpCard("Highest score", pc(A.high), pc(B.high), deltaChip(A.high, B.high, " pts")),
+      cmpCard("Students graded", A.n, B.n, deltaChip(A.n, B.n, ""), "", "Students with at least one answer marked"),
+    ].join("");
+
+    // ---- where students landed (stacked band bars) ----
+    const bandRow = (label, S) => {
+      const segs = BANDS.filter((b) => S.bandNames[b].length).map((b) => {
+        const c = S.bandNames[b].length;
+        const tip = `${BAND_LABEL[b]} (${c}):\n` + S.bandNames[b].join("\n");
+        return `<div class="band-seg" style="width:${(c / S.n) * 100}%;background:${BAND_COLOR[b]}" ` +
+          `data-tip="${escapeHtml(tip)}">${c}</div>`;
+      }).join("");
+      return `<div class="band-row"><span class="band-row-lbl">${label}</span>` +
+        `<div class="band-track">${segs || '<div class="band-empty">no data</div>'}</div></div>`;
+    };
+    els.compareBands.innerHTML = bandRow("Before", A) + bandRow("After", B);
+
+    // ---- per-question grouped bars ----
+    renderCompareBars(A, B);
+    els.compareBarsLegend.innerHTML =
+      `<li><span class="swatch" style="background:${CMP_BEFORE_COLOR}"></span>Before: ${escapeHtml(A.label)}</li>` +
+      `<li><span class="swatch" style="background:${CMP_AFTER_COLOR}"></span>After: ${escapeHtml(B.label)}</li>`;
+
+    // ---- per-student rows (matched by name) ----
+    const rows = [];
+    const seen = {};
+    A.perStudent.concat(B.perStudent).forEach((s) => {
+      const k = nameKey(s.name);
+      if (seen[k]) return;
+      seen[k] = true;
+      const a = A.byName[k], b = B.byName[k];
+      const aPct = a && a.attempted ? a.pct : null;
+      const bPct = b && b.attempted ? b.pct : null;
+      rows.push({
+        name: s.name, a, b, aPct, bPct,
+        change: aPct != null && bPct != null ? bPct - aPct : null,
+      });
+    });
+    const both = rows.filter((r) => r.change != null);
+
+    // ---- highlights ----
+    const ins = [];
+    const joinNames = (arr) => (arr.length ? arr.join(", ") : "(none)");
+    if (A.mean != null && B.mean != null) {
+      const d = B.mean - A.mean;
+      ins.push({ tone: d > 0 ? "good" : d < 0 ? "bad" : "info",
+        text: d === 0 ? `Class average held steady at ${B.mean}%.`
+          : `Class average ${d > 0 ? "rose" : "fell"} ${Math.abs(d)} points (${A.mean}% → ${B.mean}%).` });
+    }
+    if (both.length) {
+      const rank = (p) => BANDS.indexOf(scoreBand(p));
+      const up = both.filter((r) => rank(r.bPct) > rank(r.aPct)).map((r) => r.name);
+      const down = both.filter((r) => rank(r.bPct) < rank(r.aPct)).map((r) => r.name);
+      const newlyMeet = both.filter((r) => r.aPct < 70 && r.bPct >= 70).map((r) => r.name);
+      if (up.length) ins.push({ tone: "good",
+        text: `${up.length} student${up.length !== 1 ? "s" : ""} moved up a band.`,
+        tip: `Moved up: ${joinNames(up)}` });
+      if (newlyMeet.length) ins.push({ tone: "good",
+        text: `${newlyMeet.length} student${newlyMeet.length !== 1 ? "s" : ""} now meet${newlyMeet.length === 1 ? "s" : ""} the standard.`,
+        tip: `Now meeting (70%+): ${joinNames(newlyMeet)}` });
+      if (down.length) ins.push({ tone: "bad",
+        text: `${down.length} student${down.length !== 1 ? "s" : ""} dropped a band.`,
+        tip: `Dropped: ${joinNames(down)}` });
+
+      const gains = both.filter((r) => r.change > 0).sort((x, y) => y.change - x.change);
+      if (gains.length) ins.push({ tone: "good",
+        text: `Most improved: ${gains.slice(0, 3).map((r) => `${escapeHtml(r.name)} (+${r.change})`).join(", ")}.`,
+        tip: `Improved: ${gains.map((r) => `${r.name} +${r.change}`).join("\n")}` });
+      const drops = both.filter((r) => r.change < 0).sort((x, y) => x.change - y.change);
+      if (drops.length) ins.push({ tone: "warn",
+        text: `${drops.length} student${drops.length !== 1 ? "s" : ""} scored lower; biggest drop ${escapeHtml(drops[0].name)} (−${-drops[0].change}).`,
+        tip: `Scored lower: ${drops.map((r) => `${r.name} −${-r.change}`).join("\n")}` });
+    }
+
+    // Question gains (only questions graded on both tests).
+    const qDiffs = [];
+    for (let q = 0; q < Math.min(A.numQuestions, B.numQuestions); q++) {
+      const a = A.perQuestion[q], b = B.perQuestion[q];
+      if (a != null && b != null) qDiffs.push({ q: q + 1, a, b, d: b - a });
+    }
+    if (qDiffs.length) {
+      const best = qDiffs.slice().sort((x, y) => y.d - x.d)[0];
+      const worst = qDiffs.slice().sort((x, y) => x.d - y.d)[0];
+      if (best.d > 0) ins.push({ tone: "good",
+        text: `Biggest question gain: Q${best.q} (${best.a}% → ${best.b}%).` });
+      if (worst.d < 0) ins.push({ tone: "warn",
+        text: `Question that slipped most: Q${worst.q} (${worst.a}% → ${worst.b}%).` });
+    }
+    if (A.numQuestions !== B.numQuestions) ins.push({ tone: "info",
+      text: `The tests have different numbers of questions (${A.numQuestions} vs ${B.numQuestions}); questions are compared by number.` });
+
+    const onlyA = rows.filter((r) => r.a && !r.b).map((r) => r.name);
+    const onlyB = rows.filter((r) => r.b && !r.a).map((r) => r.name);
+    if (onlyA.length || onlyB.length) ins.push({ tone: "info",
+      text: `${onlyA.length + onlyB.length} student${onlyA.length + onlyB.length !== 1 ? "s are" : " is"} on only one of the tests.`,
+      tip: `Only Before: ${joinNames(onlyA)}\nOnly After: ${joinNames(onlyB)}` });
+
+    els.compareInsights.innerHTML = ins.length
+      ? ins.map((i) => `<div class="insight tone-${i.tone}" data-tip="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
+      : '<div class="insight tone-info">Grade both tests to see how the class changed.</div>';
+
+    // ---- student table: biggest gains first, then anyone missing a score ----
+    rows.sort((x, y) => {
+      if (x.change != null && y.change != null) return y.change - x.change;
+      if (x.change != null) return -1;
+      if (y.change != null) return 1;
+      return 0;
+    });
+    const scoreCell = (entry, pct) =>
+      !entry ? '<span class="cmp-missing">not on test</span>' : pct == null ? "—" : pct + "%";
+    const bandCell = (pct) => {
+      if (pct == null) return '<span class="cmp-missing">—</span>';
+      const b = scoreBand(pct);
+      return `<span class="band-dot" style="background:${BAND_COLOR[b]}"></span>${BAND_LABEL[b]}`;
+    };
+    els.compareRows.innerHTML = rows.map((r) =>
+      `<tr><td>${escapeHtml(r.name)}</td>` +
+      `<td class="num-col">${scoreCell(r.a, r.aPct)}</td>` +
+      `<td class="num-col">${scoreCell(r.b, r.bPct)}</td>` +
+      `<td class="num-col">${deltaChip(r.aPct, r.bPct, "")}</td>` +
+      `<td>${bandCell(r.aPct)} <span class="cmp-to">→</span> ${bandCell(r.bPct)}</td></tr>`
+    ).join("") || '<tr><td colspan="5" class="cmp-missing">No students on either test.</td></tr>';
+  }
+
+  // Grouped bars: Before (light) and After (purple) per question number.
+  function renderCompareBars(A, B) {
+    const W = 340, H = 170;
+    const m = { top: 10, right: 6, bottom: 22, left: 26 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+    const n = Math.max(A.numQuestions, B.numQuestions);
+    const y = (pct) => m.top + plotH * (1 - pct / 100);
+    let svg = "";
+
+    [0, 50, 100].forEach((g) => {
+      const gy = y(g);
+      svg += `<line x1="${m.left}" y1="${gy.toFixed(1)}" x2="${W - m.right}" y2="${gy.toFixed(1)}" ` +
+        `stroke="#e2e7ef" stroke-width="1"/>`;
+      svg += `<text x="${m.left - 4}" y="${(gy + 3).toFixed(1)}" text-anchor="end" ` +
+        `font-size="8" fill="#1f2733">${g}</text>`;
+    });
+
+    const slot = plotW / Math.max(1, n);
+    const bw = Math.min(slot * 0.36, 13);
+    const labelEvery = n <= 20 ? 1 : Math.ceil(n / 15);
+
+    for (let i = 0; i < n; i++) {
+      const cx = m.left + slot * (i + 0.5);
+      const a = i < A.numQuestions ? A.perQuestion[i] : null;
+      const b = i < B.numQuestions ? B.perQuestion[i] : null;
+      const fmt = (v) => (v == null ? "not graded" : v + "%");
+      let tip = `Q${i + 1}: ${fmt(a)} → ${fmt(b)}`;
+      if (a != null && b != null) tip += ` (${b - a >= 0 ? "+" : "−"}${Math.abs(b - a)})`;
+      [[a, cx - bw, CMP_BEFORE_COLOR], [b, cx, CMP_AFTER_COLOR]].forEach(([pct, x, color]) => {
+        const h = plotH * ((pct || 0) / 100);
+        svg += `<rect x="${x.toFixed(1)}" y="${(m.top + plotH - h).toFixed(1)}" width="${bw.toFixed(1)}" ` +
+          `height="${h.toFixed(1)}" rx="1.5" fill="${color}" data-tip="${escapeHtml(tip)}"></rect>`;
+      });
+      if (i % labelEvery === 0) {
+        svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
+          `font-size="8" fill="#1f2733">${i + 1}</text>`;
+      }
+    }
+
+    svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
+    svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
+    els.compareBars.innerHTML = svg;
   }
 
   function card(num, lbl, tip) {

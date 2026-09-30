@@ -94,6 +94,7 @@ main {
 .tab[data-tab="setup"] { background: #4f8cff; }
 .tab[data-tab="grade"] { background: #41a85f; }
 .tab[data-tab="analysis"] { background: #e0853a; }
+.tab[data-tab="compare"] { background: #8b5fcf; }
 .tab:hover { filter: none; }
 .tab.active {
   filter: none; padding-top: 0.8rem;
@@ -399,6 +400,64 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 .mini-list { margin: 0; padding-left: 1.2rem; color: var(--ink); font-size: 0.9rem; }
 .mini-list li { margin: 0.2rem 0; }
 .mini-list .meta { color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- compare ---------- */
+.compare-body { display: flex; flex-direction: column; gap: 1.2rem; }
+.compare-body[hidden] { display: none; }
+.compare-picker { flex-wrap: wrap; }
+.swap-btn { padding: 0.4rem 0.7rem; font-size: 1.05rem; line-height: 1; }
+.compare-hero { border-color: #8b5fcf; }
+.compare-hero .analysis-kicker { color: #8b5fcf; }
+.cmp-arrow { color: var(--muted); font-weight: 400; }
+.cmp-note { margin: 0 0 1rem; color: #b07f00; font-weight: 600; font-size: 0.9rem; }
+
+.cmp-card .cmp-vals { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.cmp-card .lbl { margin-bottom: 0.15rem; }
+.cmp-before { color: var(--muted); font-size: 1.05rem; font-weight: 600; }
+.cmp-to { color: var(--muted); }
+.cmp-sub { font-size: 0.75rem; color: var(--muted); }
+.delta {
+  display: inline-block; margin-top: 0.35rem; padding: 0.1rem 0.5rem;
+  border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap;
+}
+.delta.up   { background: var(--correct-bg); color: var(--correct); }
+.delta.down { background: var(--wrong-bg); color: var(--wrong); }
+.delta.flat { background: var(--none-bg); color: var(--muted); }
+
+.cmp-chart-box h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.band-rows { display: flex; flex-direction: column; gap: 0.7rem; }
+.band-row { display: flex; align-items: center; gap: 0.8rem; }
+.band-row-lbl { width: 3.6rem; font-weight: 600; font-size: 0.9rem; flex: 0 0 auto; }
+.band-track {
+  flex: 1; display: flex; height: 34px; border-radius: 8px;
+  overflow: hidden; background: #eef1f6;
+}
+.band-seg {
+  display: flex; align-items: center; justify-content: center; min-width: 1.6rem;
+  color: #fff; font-weight: 700; font-size: 0.9rem;
+}
+.band-empty { margin: auto; color: var(--muted); font-size: 0.8rem; }
+.cmp-legend {
+  display: flex; gap: 1rem; flex-wrap: wrap; list-style: none;
+  margin: 0.2rem 0 0; padding: 0; font-size: 0.85rem;
+}
+.cmp-legend li { display: flex; align-items: center; gap: 0.4rem; }
+.cmp-legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+
+.cmp-table-wrap { overflow-x: auto; }
+.cmp-student-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.cmp-student-table th {
+  text-align: left; color: var(--muted); font-weight: 600; background: #f7f9fc;
+  padding: 0.5rem 0.7rem; border-bottom: 2px solid var(--border);
+}
+.cmp-student-table td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border); }
+.cmp-student-table .num-col { text-align: center; font-variant-numeric: tabular-nums; }
+.cmp-student-table .delta { margin-top: 0; }
+.band-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  margin-right: 0.3rem; vertical-align: middle;
+}
+.cmp-missing { color: var(--muted); font-style: italic; font-size: 0.82rem; }
 
 @media (max-width: 640px) {
   .analysis-cols { grid-template-columns: 1fr; }

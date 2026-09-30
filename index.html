@@ -31,6 +31,7 @@
       <button class="tab active" data-tab="setup" role="tab">Setup</button>
       <button class="tab" data-tab="grade" role="tab">Grade</button>
       <button class="tab" data-tab="analysis" role="tab">Analysis</button>
+      <button class="tab" data-tab="compare" role="tab">Compare</button>
     </div>
 
     <!-- ===== Setup tab ===== -->
@@ -189,6 +190,77 @@
       </div>
     </section>
     </div><!-- /analysis pane -->
+
+    <!-- ===== Compare tab (read-only: two tests side by side, e.g. pre/post) ===== -->
+    <div class="tab-pane" data-pane="compare">
+
+    <div id="compareEmpty" class="panel empty-state">
+      Create at least two tests to compare them &mdash; for example a pre-test and a post-test.
+    </div>
+
+    <div id="compareBody" class="compare-body" hidden>
+      <div class="test-switcher compare-picker">
+        <label for="compareASelect">Before</label>
+        <select id="compareASelect"></select>
+        <button id="compareSwapBtn" class="btn ghost swap-btn" type="button" data-tip="Swap Before and After">&#8644;</button>
+        <label for="compareBSelect">After</label>
+        <select id="compareBSelect"></select>
+      </div>
+
+      <section class="panel analysis compare-hero">
+        <p class="analysis-kicker">Compare</p>
+        <h1 class="analysis-title" id="compareTitle"></h1>
+        <p class="cmp-note" id="compareSame" hidden>Both sides are the same test &mdash; pick a different test for Before or After.</p>
+
+        <div class="stats" id="compareCards"></div>
+
+        <div class="chart-row">
+          <div class="chart-half bar-half cmp-chart-box">
+            <h3>Where students landed</h3>
+            <div class="band-rows" id="compareBands"></div>
+            <ul class="cmp-legend">
+              <li data-tip="50% and below"><span class="swatch" style="background:#d83a3a"></span>Does not meet</li>
+              <li data-tip="51–69%"><span class="swatch" style="background:#e0a400"></span>Nearly meets</li>
+              <li data-tip="70% and up"><span class="swatch" style="background:#1f9d55"></span>Meets</li>
+            </ul>
+          </div>
+          <div class="chart-half bar-half cmp-chart-box">
+            <h3>% correct by question</h3>
+            <svg id="compareBars" class="bar-chart" viewBox="0 0 340 170" role="img"
+                 aria-label="Percent correct for each question, before and after"></svg>
+            <ul class="cmp-legend" id="compareBarsLegend"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Collapsible (hide to conceal student names) -->
+      <section class="panel analysis analysis-details" id="compareDetails">
+        <button class="sheet-header" id="compareDetailsHeader" type="button">
+          <span>Highlights &amp; student breakdown</span>
+          <span class="sheet-toggle" aria-hidden="true">▾</span>
+        </button>
+        <div class="details-body">
+          <h3 class="section-title">Highlights</h3>
+          <div class="insights" id="compareInsights"></div>
+
+          <div class="cmp-table-wrap">
+            <table class="cmp-student-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th class="num-col">Before</th>
+                  <th class="num-col">After</th>
+                  <th class="num-col">Change</th>
+                  <th>Band</th>
+                </tr>
+              </thead>
+              <tbody id="compareRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+    </div><!-- /compare pane -->
   </main>
 
   <div class="pencil-deco" aria-hidden="true">

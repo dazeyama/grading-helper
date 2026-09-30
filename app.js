@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Grading Helper — basic UI prototype
-// Tri-state cells: 'none' (did not participate) -> 'correct' -> 'wrong' -> 'none'
+// Four-state cells: 'none' (did not participate) -> 'correct' -> 'half' (50%) -> 'wrong' -> 'none'
 // ---------------------------------------------------------------------------
 
 (function () {

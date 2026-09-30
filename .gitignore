@@ -33,3 +33,13 @@ npm-debug.log*
 # --- Misc ---
 *.tmp
 .cache/
+
+# --- Grading data (never commit student data) ---
+# The app keeps its data in each browser's localStorage, not in this folder,
+# but any exported/test files saved here must stay out of the repo.
+*.csv
+*.pdf
+*.json
+data/
+exports/
+test-data/

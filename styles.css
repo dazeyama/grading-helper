@@ -609,6 +609,13 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 .str-marks .cell { width: 30px; height: 30px; border-radius: 6px; cursor: default; font-size: 0.9rem; }
 .str-marks .cell.state-none { background: #fff; border: 1px solid var(--border); }
 .done-badge { font-size: 0.78rem; font-weight: 700; color: var(--correct); }
+.class-avg-chip {
+  display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; color: var(--ink);
+  background: #fff; border: 1px solid var(--border); white-space: nowrap;
+}
+/* Per-subject average card: type-colored accent bar */
+.type-avg-card { border-left: 5px solid var(--type-color, var(--none)); }
 .link-btn {
   margin-left: auto; font: inherit; font-size: 0.82rem; font-weight: 600;
   border: none; background: transparent; color: var(--accent); cursor: pointer; padding: 0;

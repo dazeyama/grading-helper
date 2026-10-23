@@ -163,7 +163,7 @@ Live data analysis for the selected test — **or for a whole subject**. Split i
 - **Score distribution pie chart** with a legend showing each band's live **percentage (bold)** and student count. Hover a slice to see the names of the students in that band. (Single test: counts only **Done** students. Subject: bands each student by their **average across the subject**.) Tick **Chart only** (top-right of the pie panel) to hide the legend and its numbers and show the pie large and centered on its own — handy for projecting. It's off whenever the app opens, and doesn't change the Print PDF.
 - **Bar graph** filling the right half of the panel:
   - Single test: **"% correct by question"** — X axis = each question, Y axis = % correct (bars colored by band; black axes). Hover a bar for that question's exact `correct/attempted`.
-  - Subject: **"Class average by test"** — one bar per test, oldest to newest, labelled with a shortened test name (hover for the full name and average).
+  - Subject: **"Class average over time"** — a dot plot showing growth: one dot per test, oldest to newest, colored by band and labelled with the test name (names tilt when there are many tests; hover a dot for the full name, date and average). A dashed **trend line** in the subject's color runs through the graded tests, with the trend (e.g. `▲ Trend: +4.5 pts per test`) shown above the chart. Needs at least two graded tests.
 **Details & student breakdown panel (collapsible):**
 
 Click its header to collapse/expand — handy for **hiding student-name information** when projecting the charts to the class.
@@ -185,8 +185,8 @@ Read-only side-by-side of two tests — e.g. a pre-test and a post-test. Pick **
 
 Everything one student has done across **every test** in the app. Pick a student from the dropdown (every name on any roster, matched ignoring capitals; it shows how many tests they're on).
 
-- **Stat cards** — Tests taken, Average score, Best test, Lowest test, and Trend (change from their oldest to newest graded test).
-- **Tests grouped by type** — one group per type (alphabetical, untyped tests last under **Untyped**), each with a colored bar, test count and average. Inside a group, tests run oldest → newest so growth reads top to bottom. Each test row shows its type chip, name, date, question count, a band-colored score, a **Done ✓** badge if marked done, the student's marks for every question (hover a mark for the question), and an **Open in Grade** link that jumps to that test on the Grade tab.
+- **Stat cards** — an **average per subject** (e.g. "Math average", "Reading average", each with its type color; untyped tests get an "Untyped average"), then Best test, Lowest test, and **Tests taken** out of all tests in the app (e.g. `4 / 6`).
+- **Tests grouped by type** — one group per type (alphabetical, untyped tests last under **Untyped**), each with a colored bar, test count and average. Inside a group, tests run oldest → newest so growth reads top to bottom. Each test row shows its type chip, name, date, question count, the student's band-colored score, a **Class average: n%** chip for comparison, a **Done ✓** badge if marked done, the student's marks for every question (hover a mark for the question), and an **Open in Grade** link that jumps to that test on the Grade tab.
 
 ---
 
@@ -201,7 +201,7 @@ CSV is the portable backup; the in-browser cache (below) is the convenience laye
 
 ## Print PDF
 
-The **Print PDF** button (Analysis tab) builds a clean, **one-page portrait PDF report** of the analysis and downloads it (and opens it in a new tab). It includes the test title, stat cards, the pie chart with legend, the bar graph, Hardest/Easiest questions, the Highlights, and the Top performers / Needs attention lists. In subject mode it prints the subject view instead (titled with the subject, with the "Class average by test" graph and lowest/highest-average tests), saved as `<Subject> <date> analysis.pdf`. Generated entirely in the browser.
+The **Print PDF** button (Analysis tab) builds a clean, **one-page portrait PDF report** of the analysis and downloads it (and opens it in a new tab). It includes the test title, stat cards, the pie chart with legend, the bar graph, Hardest/Easiest questions, the Highlights, and the Top performers / Needs attention lists. In subject mode it prints the subject view instead (titled with the subject, with the "Class average over time" trend chart and lowest/highest-average tests), saved as `<Subject> <date> analysis.pdf`. Generated entirely in the browser.
 
 ## Auto-save / session cache
 

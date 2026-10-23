@@ -267,6 +267,9 @@
     alignPaperLines();
     window.addEventListener("resize", alignPaperLines);
     window.addEventListener("resize", fitCompareTitle);
+    window.addEventListener("resize", () => {
+      if (analysisMode.kind === "type" && document.querySelector('.tab-pane[data-pane="analysis"].active')) updateAnalysis();
+    });
     window.addEventListener("load", alignPaperLines);
   });
 
@@ -352,6 +355,9 @@
     els.growthFoot.hidden = true; // only renderCompare() reveals it, on the Compare tab
     if (name === "compare") renderCompare();
     if (name === "student") renderStudentTab();
+    // The subject trend chart sizes itself to its on-screen width, which is only
+    // measurable while the Analysis tab is showing.
+    if (name === "analysis" && analysisMode.kind === "type") updateAnalysis();
     persist();
   }
 
@@ -1368,14 +1374,14 @@
       ? ins.map((i) => `<div class="insight tone-${i.tone}" data-tip="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
       : '<div class="insight tone-info">Start grading to see insights.</div>';
 
-    // ---- charts: pie by subject average; one bar per test (date order) ----
+    // ---- charts: pie by subject average; class average over time (date order) ----
     renderScorePie(gradedPeople.map((p) => ({ name: p.name, pct: p.avgPct, done: true, attempted: 1 })));
-    const short = (s) => (s.length > 8 ? s.slice(0, 7) + "…" : s);
-    renderQuestionBars(sums.map((x) => ({ pct: x.S.mean })), {
-      title: "Class average by test",
-      labels: sums.map((x) => short(testName(x.t))),
-      tips: sums.map((x) => `${testName(x.t)}: ${x.S.mean == null ? "not graded" : x.S.mean + "% class average"}`),
-    });
+    renderTrendChart(sums.map((x) => ({
+      name: testName(x.t),
+      pct: x.S.mean,
+      tip: `${testName(x.t)}` + (x.t.createdAt != null ? ` (${shortDate(x.t.createdAt)})` : "") +
+        `\n${x.S.mean == null ? "Not graded yet" : x.S.mean + "% class average · " + x.S.n + " graded"}`,
+    })), color);
 
     // ---- lowest / highest-average tests ----
     const tLi = (x) => `<li>${escapeHtml(testName(x.t))} <span class="meta">${x.S.mean}% (${x.S.n} graded)</span></li>`;
@@ -1465,14 +1471,12 @@
     return "#d83a3a";
   }
 
-  // items: [{ q, pct, correct, attempted }] (one per question), or anything with
-  // a `pct` when opts.labels/opts.tips are given (the subject view: one bar per test).
-  // opts.title sets the heading above the chart.
-  function renderQuestionBars(perQuestion, opts) {
-    opts = opts || {};
-    els.barTitle.textContent = opts.title || "% correct by question";
-    const vb = els.questionBars.viewBox.baseVal;
-    const W = vb && vb.width ? vb.width : 340, H = vb && vb.height ? vb.height : 170;
+  // One bar per question: [{ q, pct, correct, attempted }].
+  function renderQuestionBars(perQuestion) {
+    els.barTitle.textContent = "% correct by question";
+    els.questionBars.setAttribute("aria-label", "Percent correct for each question");
+    els.questionBars.setAttribute("viewBox", "0 0 520 220"); // the trend chart resizes it
+    const W = 520, H = 220;
     const m = { top: 10, right: 6, bottom: 22, left: 26 };
     const plotW = W - m.left - m.right;
     const plotH = H - m.top - m.bottom;
@@ -1493,27 +1497,23 @@
     // Bars
     const slot = plotW / Math.max(1, n);
     const bw = Math.min(slot * 0.7, 26);
-    // Text labels (test names) need more room than question numbers.
-    const labelEvery = opts.labels
-      ? Math.max(1, Math.ceil(n * 40 / plotW))
-      : (n <= 20 ? 1 : Math.ceil(n / 15));
+    const labelEvery = n <= 20 ? 1 : Math.ceil(n / 15);
 
     perQuestion.forEach((s, i) => {
       const cx = m.left + slot * (i + 0.5);
       const x = cx - bw / 2;
-      const pct = s.pct == null ? 0 : s.pct;
+      const pct = s.pct === null ? 0 : s.pct;
       const h = plotH * (pct / 100);
       const top = m.top + plotH - h;
-      const title = opts.tips ? opts.tips[i] : s.attempted
+      const title = s.attempted
         ? `Q${s.q}: ${s.pct}% (${s.correct}/${s.attempted})`
         : `Q${s.q}: not graded`;
       svg += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" ` +
-        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct == null ? null : s.pct)}" ` +
+        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct)}" ` +
         `data-tip="${escapeHtml(title)}"></rect>`;
       if (i % labelEvery === 0) {
-        const label = opts.labels ? opts.labels[i] : s.q;
         svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
-          `font-size="8" fill="#1f2733">${escapeHtml(String(label))}</text>`;
+          `font-size="8" fill="#1f2733">${s.q}</text>`;
       }
     });
 
@@ -1522,6 +1522,104 @@
     svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
 
     els.questionBars.innerHTML = svg;
+  }
+
+  // --- subject view: class average over time — dot plot + trend line (pure SVG) ---
+  // points: [{ name, pct (null = not graded), tip }] oldest first; color = subject color.
+  // Draws into the same <svg> as the question bars so Print PDF picks it up.
+  function renderTrendChart(points, color) {
+    els.barTitle.textContent = "Class average over time";
+    const svgEl = els.questionBars;
+    svgEl.setAttribute("aria-label", "Class average for each test, oldest to newest, with a trend line");
+    // Match the coordinate system to the chart's real on-screen size, so font
+    // sizes below are true pixels (readable) instead of being scaled down.
+    const W = Math.round(svgEl.clientWidth) || 520;
+    const H = Math.max(240, Math.min(340, Math.round(W * 0.55)));
+    svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const n = points.length;
+    const ink = "#1f2733", lineColor = color || "#3b6cff";
+
+    // Test-name labels: wrap onto up to two lines; tilt only if they still can't fit.
+    const NAME_FONT = 14, CHAR_W = NAME_FONT * 0.56;
+    const m0 = { top: 30, right: 20, left: 50 };
+    const slot0 = (W - m0.left - m0.right) / Math.max(1, n);
+    const perLine = Math.floor((slot0 - 8) / CHAR_W);
+    const cut = (s, max) => (s.length > max ? s.slice(0, Math.max(1, max - 1)) + "…" : s);
+    const wrap2 = (name, max) => {
+      const words = name.split(/\s+/);
+      let line1 = "";
+      while (words.length && (line1 ? line1 + " " + words[0] : words[0]).length <= max) {
+        line1 = line1 ? line1 + " " + words.shift() : words.shift();
+      }
+      if (!line1) return [cut(name, max)];           // first word alone is too long
+      return words.length ? [line1, cut(words.join(" "), max)] : [line1];
+    };
+    const tilt = perLine < 6;
+    const labels = points.map((p) => (tilt ? [cut(p.name, 16)] : wrap2(p.name, perLine)));
+    const lines = Math.max.apply(null, labels.map((l) => l.length).concat([1]));
+    const longest = Math.max.apply(null, labels.map((l) => l[0].length).concat([1]));
+    const m = Object.assign({}, m0, {
+      bottom: tilt ? Math.min(110, 22 + longest * CHAR_W * 0.6) : 14 + lines * (NAME_FONT + 3),
+    });
+    const plotW = W - m.left - m.right, plotH = H - m.top - m.bottom;
+    const slot = plotW / Math.max(1, n);
+    const xAt = (i) => m.left + slot * (i + 0.5);
+    const yAt = (pct) => m.top + plotH * (1 - pct / 100);
+
+    let svg = `<g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">`;
+
+    // Gridlines + Y labels every 25%
+    [0, 25, 50, 75, 100].forEach((g) => {
+      const gy = yAt(g).toFixed(1);
+      svg += `<line x1="${m.left}" y1="${gy}" x2="${W - m.right}" y2="${gy}" stroke="#e2e7ef" stroke-width="1"/>`;
+      svg += `<text x="${m.left - 8}" y="${(+gy + 4.5).toFixed(1)}" text-anchor="end" font-size="13" fill="${ink}">${g}%</text>`;
+    });
+
+    // X labels (test names, oldest → newest)
+    labels.forEach((l, i) => {
+      const x = xAt(i).toFixed(1), y = m.top + plotH + (tilt ? 14 : NAME_FONT + 6);
+      const fill = points[i].pct == null ? "#9aa3b2" : ink;
+      const full = `<title>${escapeHtml(points[i].name)}</title>`;
+      svg += tilt
+        ? `<text x="${x}" y="${y}" text-anchor="end" font-size="${NAME_FONT}" font-weight="600" fill="${fill}" ` +
+          `transform="rotate(-35 ${x} ${y})">${full}${escapeHtml(l[0])}</text>`
+        : `<text x="${x}" y="${y}" text-anchor="middle" font-size="${NAME_FONT}" font-weight="600" fill="${fill}">${full}` +
+          l.map((t, k) => `<tspan x="${x}" dy="${k ? NAME_FONT + 3 : 0}">${escapeHtml(t)}</tspan>`).join("") + "</text>";
+    });
+
+    // Axes (black)
+    svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="${ink}" stroke-width="1.5"/>`;
+    svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="${ink}" stroke-width="1.5"/>`;
+
+    // Trend line: least-squares fit through the graded tests (needs 2+).
+    const graded = points.map((p, i) => ({ i, pct: p.pct })).filter((p) => p.pct != null);
+    if (graded.length >= 2) {
+      const xm = graded.reduce((a, p) => a + p.i, 0) / graded.length;
+      const ym = graded.reduce((a, p) => a + p.pct, 0) / graded.length;
+      const sxx = graded.reduce((a, p) => a + (p.i - xm) * (p.i - xm), 0);
+      const slope = sxx ? graded.reduce((a, p) => a + (p.i - xm) * (p.pct - ym), 0) / sxx : 0;
+      const fit = (i) => Math.max(0, Math.min(100, ym + slope * (i - xm)));
+      const i0 = graded[0].i, i1 = graded[graded.length - 1].i;
+      const step = Math.abs(slope) < 0.05 ? "flat" : `${slope > 0 ? "+" : "−"}${Math.abs(slope).toFixed(1)} pts per test`;
+      const tip = `Trend: ${step}`;
+      const line = `x1="${xAt(i0).toFixed(1)}" y1="${yAt(fit(i0)).toFixed(1)}" x2="${xAt(i1).toFixed(1)}" y2="${yAt(fit(i1)).toFixed(1)}"`;
+      svg += `<line ${line} stroke="${lineColor}" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.85"/>`;
+      svg += `<line ${line} stroke="transparent" stroke-width="12" data-tip="${escapeHtml(tip)}"/>`; // wide hover target
+      const arrow = Math.abs(slope) < 0.05 ? "■" : slope > 0 ? "▲" : "▼";
+      svg += `<text x="${W - m.right}" y="17" text-anchor="end" font-size="14" font-weight="700" fill="${lineColor}">` +
+        `${arrow} Trend: ${step}</text>`;
+    } else {
+      svg += `<text x="${W - m.right}" y="17" text-anchor="end" font-size="13" fill="#9aa3b2">` +
+        `Grade at least 2 tests to see a trend</text>`;
+    }
+
+    // Dots (band-colored), drawn last so they sit on top of the trend line
+    graded.forEach((p) => {
+      svg += `<circle cx="${xAt(p.i).toFixed(1)}" cy="${yAt(p.pct).toFixed(1)}" r="8" fill="${barColor(p.pct)}" ` +
+        `stroke="#fff" stroke-width="2.5" data-tip="${escapeHtml(points[p.i].tip)}"/>`;
+    });
+
+    els.questionBars.innerHTML = svg + "</g>";
   }
 
   // -------------------------------------------------------------------------
@@ -1875,23 +1973,6 @@
     els.studentTitle.textContent = roster[studentSelKey];
     els.studentMeta.textContent = `on ${entries.length} test${entries.length !== 1 ? "s" : ""}`;
 
-    // ---- stat cards ----
-    const avg = graded.length ? Math.round(graded.reduce((a, e) => a + e.stats.pct, 0) / graded.length) : null;
-    const best = graded.slice().sort((a, b) => b.stats.pct - a.stats.pct)[0];
-    const worst = graded.slice().sort((a, b) => a.stats.pct - b.stats.pct)[0];
-    const byDate = graded.slice().sort(byCreated);
-    const testCard = (e, lbl) => e
-      ? card(`${e.stats.pct}% <span class="num-sub">${escapeHtml(e.test.name || "Untitled test")}</span>`, lbl, e.test.name)
-      : card("—", lbl);
-    els.studentCards.innerHTML = [
-      card(entries.length, "Tests taken"),
-      card(avg == null ? "—" : avg + "%", "Average score", "Mean of graded tests"),
-      testCard(best, "Best test"),
-      testCard(worst, "Lowest test"),
-      card(byDate.length >= 2 ? deltaChip(byDate[0].stats.pct, byDate[byDate.length - 1].stats.pct, " pts") : "—",
-        "Trend", "Oldest graded test to newest"),
-    ].join("");
-
     // ---- groups by type: A→Z, untyped last; oldest test first within a group ----
     const groups = {};
     entries.forEach((e) => {
@@ -1903,23 +1984,54 @@
       if (!b) return -1;
       return typeLabelOf(groups[a][0].test).localeCompare(typeLabelOf(groups[b][0].test));
     });
+    const groupInfo = {};
+    groupKeys.forEach((k) => {
+      const list = groups[k].slice().sort(byCreated);
+      const g = list.filter((e) => e.stats.attempted > 0);
+      groupInfo[k] = {
+        list: list,
+        color: k ? typeColorOf(list[0].test) : null,
+        label: k ? typeLabelOf(list[0].test) : "Untyped",
+        graded: g.length,
+        avg: g.length ? Math.round(g.reduce((a, e) => a + e.stats.pct, 0) / g.length) : null,
+      };
+    });
+
+    // ---- stat cards: an average per subject (not overall), …, Tests taken last ----
+    const best = graded.slice().sort((a, b) => b.stats.pct - a.stats.pct)[0];
+    const worst = graded.slice().sort((a, b) => a.stats.pct - b.stats.pct)[0];
+    const testCard = (e, lbl) => e
+      ? card(`${e.stats.pct}% <span class="num-sub">${escapeHtml(e.test.name || "Untitled test")}</span>`, lbl, e.test.name)
+      : card("—", lbl);
+    const typeAvgCard = (k) => {
+      const gi = groupInfo[k];
+      const tip = `Mean of ${gi.graded} graded ${gi.label} test${gi.graded !== 1 ? "s" : ""}`;
+      return `<div class="stat-card type-avg-card"${gi.color ? ` style="--type-color:${gi.color}"` : ""} ` +
+        `data-tip="${escapeHtml(tip)}"><div class="num">${gi.avg == null ? "—" : gi.avg + "%"}</div>` +
+        `<div class="lbl">${escapeHtml(gi.label)} average</div></div>`;
+    };
+    els.studentCards.innerHTML = groupKeys.map(typeAvgCard).concat([
+      testCard(best, "Best test"),
+      testCard(worst, "Lowest test"),
+      card(`${entries.length} <span class="num-sub">/ ${tests.length}</span>`, "Tests taken",
+        `On ${entries.length} of the ${tests.length} tests in the app`),
+    ]).join("");
 
     els.studentGroups.innerHTML = groupKeys.map((k) => {
-      const list = groups[k].slice().sort(byCreated);
-      const color = k ? typeColorOf(list[0].test) : null;
-      const label = k ? typeLabelOf(list[0].test) : "Untyped";
-      const g = list.filter((e) => e.stats.attempted > 0);
-      const gAvg = g.length ? Math.round(g.reduce((a, e) => a + e.stats.pct, 0) / g.length) : null;
+      const { list, color, label, avg: gAvg } = groupInfo[k];
 
       const rowsHtml = list.map((e) => {
         const t = e.test, s = e.stats;
         const marks = e.stu.marks.map((m, q) =>
           `<span class="cell state-${m}" data-tip="Q${q + 1}: ${m === "none" ? "blank" : m}">${GLYPH[m]}</span>`).join("");
         const date = t.createdAt != null ? shortDate(t.createdAt) : "date unknown";
+        const classAvg = summarizeTest(t).mean;
         return `<div class="student-test-row">` +
           `<div class="str-head">${typeChip(t)} <strong>${escapeHtml(t.name || "Untitled test")}</strong> ` +
           `<span class="meta">${date} · ${t.numQuestions} question${t.numQuestions !== 1 ? "s" : ""}</span> ` +
-          `<span class="score-pill band-${scoreBand(s.pct)}">${s.attempted ? s.pct + "%" : "—"}</span>` +
+          `<span class="score-pill band-${scoreBand(s.pct)}">${s.attempted ? s.pct + "%" : "—"}</span> ` +
+          `<span class="class-avg-chip" data-tip="Mean score of everyone graded on this test">` +
+          `Class average: ${classAvg == null ? "—" : classAvg + "%"}</span>` +
           (e.stu.done ? ' <span class="done-badge">Done ✓</span>' : "") +
           `<button type="button" class="link-btn" data-open-test="${t.id}">Open in Grade</button></div>` +
           `<div class="str-marks">${marks}</div></div>`;

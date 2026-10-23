@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
-// Grading Helper — basic UI prototype
-// Four-state cells: 'none' (did not participate) -> 'correct' -> 'half' (50%) -> 'wrong' -> 'none'
+// Grading Helper
+// Four-state cells: 'none' (did not participate) -> 'correct' -> 'wrong' -> 'half' (50%) -> 'none'
 // ---------------------------------------------------------------------------
 
 (function () {
   "use strict";
 
-  const STATES = ["none", "correct", "half", "wrong"];
+  const STATES = ["none", "correct", "wrong", "half"];
   const GLYPH = { none: "", correct: "✓", half: "/", wrong: "✗" };
   const STORE_KEY = "gradingHelper.session.v1";
   const SAMPLE_NAMES = [
@@ -31,6 +31,87 @@
   let detailsCollapsed = false; // Analysis tab "Details" panel (global, not per-test)
   let menuIndex = null;     // student index the name menu is acting on
 
+  const MONTHS = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  const longDate = (ms) => { const d = new Date(ms); return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; };
+  const shortDate = (ms) => { const d = new Date(ms); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`; };
+  const byCreated = (a, b) => (a.createdAt || 0) - (b.createdAt || 0);
+
+  // Bands + name matching, shared by Analysis, Compare and Student.
+  const BANDS = ["notmeet", "nearly", "meets"]; // low -> high
+  const BAND_LABEL = { meets: "Meets", nearly: "Nearly meets", notmeet: "Does not meet" };
+  const BAND_COLOR = { meets: "#1f9d55", nearly: "#e0a400", notmeet: "#d83a3a" };
+  const CMP_BEFORE_COLOR = "#b3c3e0", CMP_AFTER_COLOR = "#8b5fcf";
+  const nameKey = (s) => String(s || "").trim().toLowerCase();
+
+  // -------------------------------------------------------------------------
+  // Test types (e.g. Math, Reading). The color belongs to the TYPE, not the
+  // test: every test sharing a type shares one color.
+  // -------------------------------------------------------------------------
+  // The 12 colors offered by the Setup tab's color picker (also used, in order,
+  // to auto-color new types). All dark enough for white chip text.
+  const TYPE_PALETTE = [
+    "#3b6cff", "#1f9d55", "#e0853a", "#8b5fcf", "#d9557f", "#0f9ba8",
+    "#b07f00", "#5a6b7f", "#d83a3a", "#1e40af", "#8d5a3b", "#b8329e",
+  ];
+  const TYPE_PALETTE_NAMES = [
+    "Blue", "Green", "Orange", "Purple", "Pink", "Teal",
+    "Gold", "Slate", "Red", "Navy", "Brown", "Magenta",
+  ];
+  let typeColors = {};      // typeKey -> hex color (persisted)
+  const typeKey = (s) => String(s || "").trim().toLowerCase();
+
+  function typeKeyOf(t) { return typeKey(t && t.type); }
+  function typeLabelOf(t) { return ((t && t.type) || "").trim(); }
+
+  function typeColorOf(t) {            // null when untyped
+    const k = typeKeyOf(t);
+    if (!k) return null;
+    if (!typeColors[k]) {
+      // First palette color no other type is using (falls back to cycling).
+      const used = Object.keys(typeColors).map((x) => typeColors[x]);
+      typeColors[k] = TYPE_PALETTE.find((c) => used.indexOf(c) === -1) ||
+        TYPE_PALETTE[Object.keys(typeColors).length % TYPE_PALETTE.length];
+    }
+    return typeColors[k];
+  }
+
+  // Drop colors for types no test uses any more. Keeps half-typed names
+  // ("M", "Ma", "Mat"…) from claiming palette slots while the teacher types.
+  function pruneTypeColors() {
+    const live = {};
+    tests.forEach((t) => { const k = typeKeyOf(t); if (k) live[k] = true; });
+    Object.keys(typeColors).forEach((k) => { if (!live[k]) delete typeColors[k]; });
+  }
+
+  function typeChip(t, extraClass) {  // "" when untyped
+    const c = typeColorOf(t);
+    if (!c) return "";
+    return `<span class="type-chip ${extraClass || ""}" style="--type-color:${c}">${escapeHtml(typeLabelOf(t))}</span>`;
+  }
+
+  // Distinct non-empty types across all tests: [{ key, label, color, count }], A→Z.
+  function typeGroups() {
+    const map = {}, list = [];
+    tests.forEach((t) => {
+      const k = typeKeyOf(t);
+      if (!k) return;
+      if (!map[k]) { map[k] = { key: k, label: typeLabelOf(t), color: typeColorOf(t), count: 0 }; list.push(map[k]); }
+      map[k].count++;
+    });
+    return list.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  // Analysis tab: a single test, or every test of one type ("subject").
+  let analysisMode = { kind: "test" }; // or { kind: "type", key, label }
+
+  // Compare tab picks (ephemeral) + students hidden from "Top growth" per pair.
+  let compareAId = null, compareBId = null;
+  let hiddenGrowth = {};    // "<aId>|<bId>" -> [nameKey, ...] (persisted)
+
+  // Student tab selection (a nameKey).
+  let studentSelKey = null;
+
   // --- elements ---
   const els = {};
   document.addEventListener("DOMContentLoaded", function () {
@@ -46,8 +127,12 @@
       "sheetToggle", "nameMenu", "pinStudentBtn",
       "setupTestSelect", "gradeTestSelect", "analysisTestSelect", "deleteTestBtn",
       "compareEmpty", "compareBody", "compareASelect", "compareBSelect", "compareSwapBtn",
-      "compareTitle", "compareSame", "compareCards", "compareBands", "compareBars",
+      "compareTitle", "compareSame", "compareMain", "compareMinor", "compareBands", "compareBars",
+      "bandNumbersToggle", "pieHalf", "chartOnlyToggle", "growthGrid", "growthFoot", "showHiddenBtn", "hiddenCount", "compareTables", "compareRows2",
       "compareBarsLegend", "compareDetails", "compareDetailsHeader", "compareInsights", "compareRows",
+      "titleDate", "titleCreated", "testType", "testTypeColor", "typeColorMenu", "typeSuggestions", "sheetTitle",
+      "studentSelect", "studentMeta", "studentEmpty", "studentPanel", "studentTitle", "studentCards", "studentGroups",
+      "avgChipNum", "barTitle", "hardestTitle", "easiestTitle",
     ].forEach((id) => (els[id] = document.getElementById(id)));
 
     initTooltip();
@@ -60,11 +145,46 @@
     els.testName.addEventListener("input", applyNameEdit);
     els.classList.addEventListener("input", applyClassListEdit);
     els.numQuestions.addEventListener("change", applyQuestionCountEdit);
+    els.testType.addEventListener("input", applyTypeEdit);
+
+    // Type color picker: a swatch button that opens a 12-color menu.
+    els.typeColorMenu.innerHTML = TYPE_PALETTE.map((c, i) =>
+      `<button type="button" class="color-option" role="menuitemradio" data-color="${c}" ` +
+      `style="background:${c}" aria-label="${TYPE_PALETTE_NAMES[i]}" data-tip="${TYPE_PALETTE_NAMES[i]}"></button>`).join("");
+    els.testTypeColor.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (els.typeColorMenu.hidden) openColorMenu(); else closeColorMenu();
+    });
+    els.typeColorMenu.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opt = e.target.closest ? e.target.closest(".color-option") : null;
+      if (!opt) return;
+      applyTypeColorEdit(opt.getAttribute("data-color"));
+      closeColorMenu();
+      els.testTypeColor.focus();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !els.typeColorMenu.hidden) { closeColorMenu(); els.testTypeColor.focus(); }
+    });
 
     // Test switcher dropdowns (Setup + Grade + Analysis stay in sync)
     els.setupTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
     els.gradeTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
-    els.analysisTestSelect.addEventListener("change", (e) => switchTest(e.target.value));
+    // The Analysis dropdown also lists subjects ("type:<key>"). Picking a subject
+    // never changes the current test — Setup and Grade keep showing it.
+    els.analysisTestSelect.addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v.indexOf("type:") === 0) {
+        const key = v.slice(5);
+        const g = typeGroups().find((x) => x.key === key);
+        analysisMode = { kind: "type", key: key, label: g ? g.label : key };
+        renderAnalysis();
+      } else {
+        analysisMode = { kind: "test" };
+        if (v === currentTestId) renderAnalysis();
+        else switchTest(v);
+      }
+    });
     els.deleteTestBtn.addEventListener("click", deleteTest);
 
     // Compare tab (read-only; its picks are ephemeral and never saved)
@@ -76,6 +196,37 @@
     });
     els.compareDetailsHeader.addEventListener("click", () =>
       els.compareDetails.classList.toggle("collapsed"));
+    // "Where students landed": counts are hidden unless "Show numbers" is ticked.
+    // Not saved, so it's always off when the app opens.
+    els.bandNumbersToggle.addEventListener("change", () =>
+      els.compareBands.classList.toggle("show-numbers", els.bandNumbersToggle.checked));
+    // Top growth: × hides a student for this Before/After pair; Show Hidden restores.
+    els.growthGrid.addEventListener("click", (e) => {
+      const x = e.target.closest ? e.target.closest(".growth-x") : null;
+      if (!x) return;
+      const pair = compareAId + "|" + compareBId;
+      (hiddenGrowth[pair] = hiddenGrowth[pair] || []).push(x.getAttribute("data-key"));
+      persist();
+      renderCompare();
+    });
+    els.showHiddenBtn.addEventListener("click", () => {
+      hiddenGrowth[compareAId + "|" + compareBId] = [];
+      persist();
+      renderCompare();
+    });
+
+    // Student tab (read-only)
+    els.studentSelect.addEventListener("change", (e) => {
+      studentSelKey = e.target.value;
+      renderStudentTab();
+      persist();
+    });
+    els.studentGroups.addEventListener("click", (e) => {
+      const link = e.target.closest ? e.target.closest("[data-open-test]") : null;
+      if (!link) return;
+      switchTest(link.getAttribute("data-open-test"));
+      switchTab("grade");
+    });
 
     // Save / load (CSV, one test per file)
     els.saveBtn.addEventListener("click", saveCsv);
@@ -91,23 +242,23 @@
     els.sheetHeader.addEventListener("click", toggleSheet);
     els.detailsHeader.addEventListener("click", toggleDetails);
     els.printPdfBtn.addEventListener("click", printPdf);
+    // Analysis pie: "Chart only" hides the key (and its numbers) and shows the
+    // pie large and centered. Not saved, so it's always off when the app opens.
+    els.chartOnlyToggle.addEventListener("change", () =>
+      els.pieHalf.classList.toggle("chart-only", els.chartOnlyToggle.checked));
     els.pinnedName.addEventListener("click", unpinStudent);
     els.pinStudentBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (menuIndex != null) pinStudent(menuIndex);
       closeNameMenu();
     });
-    // Click anywhere else closes the name menu.
-    document.addEventListener("click", () => closeNameMenu());
+    // Click anywhere else closes the name menu and the color menu.
+    document.addEventListener("click", () => { closeNameMenu(); closeColorMenu(); });
 
-    // Today's date, written out, on the title line.
-    const titleDate = document.getElementById("titleDate");
-    if (titleDate) {
-      const MONTHS = ["January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"];
-      const d = new Date();
-      titleDate.textContent = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-    }
+    // Today's date, written out, on the title line (re-read every minute so it
+    // rolls over at midnight without a refresh).
+    renderTitleDate();
+    setInterval(renderTitleDate, 60 * 1000);
 
     // Resume the last session if one was cached; otherwise seed a sample test.
     if (!restoreSession()) seedDefaultTest();
@@ -115,6 +266,7 @@
     // Snap the ruled-line grid so the first line lands on the red tab shelf.
     alignPaperLines();
     window.addEventListener("resize", alignPaperLines);
+    window.addEventListener("resize", fitCompareTitle);
     window.addEventListener("load", alignPaperLines);
   });
 
@@ -168,9 +320,21 @@
     window.addEventListener("scroll", hide, true);
   }
 
-  function syncTestTitle() {
+  // Title corner: today's date, plus when the selected test was created.
+  function renderTitleDate() {
+    if (els.titleDate) els.titleDate.textContent = longDate(Date.now());
+    if (!els.titleCreated) return;
     const t = getCurrentTest();
-    els.analysisTitle.textContent = (t && t.name) ? t.name : "Untitled test";
+    if (!t) { els.titleCreated.innerHTML = ""; return; }
+    const when = t.createdAt != null ? longDate(t.createdAt) : "— unknown";
+    els.titleCreated.innerHTML = `Test created ${when} ${typeChip(t, "chip-sm")}`;
+  }
+
+  function syncTestTitle() {
+    if (analysisMode.kind === "type") return; // subject view owns the title
+    const t = getCurrentTest();
+    els.analysisTitle.innerHTML =
+      escapeHtml((t && t.name) ? t.name : "Untitled test") + " " + typeChip(t, "title-chip");
   }
 
   function switchTab(name) {
@@ -185,8 +349,15 @@
       t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tab-pane").forEach((p) =>
       p.classList.toggle("active", p.dataset.pane === name));
+    els.growthFoot.hidden = true; // only renderCompare() reveals it, on the Compare tab
     if (name === "compare") renderCompare();
+    if (name === "student") renderStudentTab();
     persist();
+  }
+
+  // Keep the Student tab current if it's showing when data changes.
+  function refreshStudentTabIfActive() {
+    if (document.querySelector('.tab-pane[data-pane="student"].active')) renderStudentTab();
   }
 
   // -------------------------------------------------------------------------
@@ -203,27 +374,43 @@
         done: !!s.done,
       };
     });
+    const id = t.id || genId();
+    // Old caches have no createdAt — recover it from the id ("t<N>_<epoch ms>").
+    let createdAt = Number.isFinite(t.createdAt) ? t.createdAt : parseInt(String(id).split("_")[1], 10);
+    if (!Number.isFinite(createdAt)) createdAt = null;
     return {
-      id: t.id || genId(),
+      id: id,
       name: t.name || "Untitled test",
       numQuestions: nq,
       students: studs,
+      createdAt: createdAt,
+      type: String(t.type || ""),
     };
   }
 
   function persist() {
     try {
       syncCurrentTest();
+      pruneTypeColors();
+      // Forget hidden-growth lists for Before/After pairs whose tests are gone.
+      Object.keys(hiddenGrowth).forEach((pair) => {
+        const ids = pair.split("|");
+        if (!hiddenGrowth[pair].length || !ids.every((id) => tests.some((t) => t.id === id))) delete hiddenGrowth[pair];
+      });
       const activeTabEl = document.querySelector(".tab.active");
       const state = {
-        v: 2,
+        v: 3,
         tests: tests.map((t) => ({
-          id: t.id, name: t.name, numQuestions: t.numQuestions,
+          id: t.id, name: t.name, numQuestions: t.numQuestions, createdAt: t.createdAt, type: t.type || "",
           students: t.students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
         })),
         currentTestId: currentTestId,
         activeTab: activeTabEl ? activeTabEl.dataset.tab : "setup",
         detailsCollapsed: detailsCollapsed,
+        typeColors: typeColors,
+        analysisMode: analysisMode,
+        hiddenGrowth: hiddenGrowth,
+        studentSelKey: studentSelKey,
         setupName: els.testName.value,
         setupClassList: els.classList.value,
         setupNum: els.numQuestions.value,
@@ -267,6 +454,26 @@
       return false; // nothing usable — caller seeds a default test
     }
 
+    // Collection-level state (v3+); older caches simply get the defaults.
+    typeColors = {};
+    if (state.typeColors && typeof state.typeColors === "object") {
+      Object.keys(state.typeColors).forEach((k) => {
+        const c = state.typeColors[k];
+        if (typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c)) typeColors[typeKey(k)] = c;
+      });
+    }
+    const am = state.analysisMode;
+    analysisMode = am && am.kind === "type" && typeof am.key === "string"
+      ? { kind: "type", key: am.key, label: String(am.label || am.key) }
+      : { kind: "test" };
+    hiddenGrowth = {};
+    if (state.hiddenGrowth && typeof state.hiddenGrowth === "object") {
+      Object.keys(state.hiddenGrowth).forEach((pair) => {
+        if (Array.isArray(state.hiddenGrowth[pair])) hiddenGrowth[pair] = state.hiddenGrowth[pair].map(String);
+      });
+    }
+    studentSelKey = typeof state.studentSelKey === "string" ? state.studentSelKey : null;
+
     loadTestIntoGlobals(getCurrentTest());
     applyDetailsCollapsed();
     switchTab(state.activeTab || "setup");
@@ -285,13 +492,15 @@
     return "t" + (++testCounter) + "_" + new Date().getTime();
   }
 
-  function makeTest(name, nq, names) {
+  function makeTest(name, nq, names, type) {
     const q = Math.max(1, Math.min(100, nq || 1));
     return {
       id: genId(),
       name: (name || "Untitled test").trim() || "Untitled test",
+      type: String(type || ""),
       numQuestions: q,
       students: names.map((n) => ({ name: n, marks: new Array(q).fill("none"), done: false })),
+      createdAt: Date.now(),
       pinnedIndex: null,
       sheetCollapsed: false,
     };
@@ -320,6 +529,8 @@
     els.testName.value = t.name;
     els.numQuestions.value = t.numQuestions;
     els.classList.value = t.students.map((s) => s.name).join("\n");
+    els.testType.value = t.type || "";
+    syncTypeColorInput();
     renderCurrentTest();
   }
 
@@ -337,6 +548,8 @@
     syncTestTitle();
     updateAnalysis();
     renderTestOptions();
+    applyTypeAccents();
+    refreshStudentTabIfActive();
   }
 
   // Append "(n)" when several tests share the same name, to tell them apart.
@@ -346,14 +559,89 @@
     return same.length <= 1 ? nm : `${nm} (${same.indexOf(t) + 1})`;
   }
 
+  // One <option> for a test; typed tests get a colored "●" (the dot carries the
+  // color even in browsers that ignore <option> styling). Untyped options get an
+  // explicit ink color, or they'd inherit the tint tintSelect() puts on the <select>.
+  const OPTION_INK = "#1f2733";
+  function testOptionHtml(t) {
+    const color = typeColorOf(t);
+    const label = escapeHtml(disambiguatedName(t));
+    return color
+      ? `<option value="${t.id}" style="color:${color}" data-color="${color}">● ${label}</option>`
+      : `<option value="${t.id}" style="color:${OPTION_INK}">${label}</option>`;
+  }
+
+  // Tint a <select> with the type color of the test (or subject) it shows.
+  function tintSelect(sel, t) {
+    const color = typeColorOf(t);
+    sel.style.borderLeft = color ? "5px solid " + color : "";
+    sel.style.color = color || "";
+  }
+
   function renderTestOptions() {
-    const opts = tests
-      .map((t) => `<option value="${t.id}">${escapeHtml(disambiguatedName(t))}</option>`)
-      .join("");
-    [els.setupTestSelect, els.gradeTestSelect, els.analysisTestSelect].forEach((sel) => {
+    const opts = tests.map(testOptionHtml).join("");
+    const cur = getCurrentTest();
+    [els.setupTestSelect, els.gradeTestSelect].forEach((sel) => {
       sel.innerHTML = opts;
       sel.value = currentTestId;
+      tintSelect(sel, cur);
     });
+
+    // Analysis: Tests, plus Subjects (all tests of a type) when any test has a type.
+    validateAnalysisMode();
+    const groups = typeGroups();
+    const sel = els.analysisTestSelect;
+    sel.innerHTML = `<optgroup label="Tests" style="color:${OPTION_INK}">${opts}</optgroup>` + (groups.length
+      ? `<optgroup label="Subjects (all tests of a type)" style="color:${OPTION_INK}">` + groups.map((g) =>
+        `<option value="type:${escapeHtml(g.key)}" style="color:${g.color}" data-color="${g.color}">` +
+        `● ${escapeHtml(g.label)} — ${g.count} test${g.count !== 1 ? "s" : ""}</option>`).join("") + "</optgroup>"
+      : "");
+    if (analysisMode.kind === "type") {
+      sel.value = "type:" + analysisMode.key;
+      tintSelect(sel, { type: analysisMode.key });
+    } else {
+      sel.value = currentTestId;
+      tintSelect(sel, cur);
+    }
+    // Suggest existing types so spellings stay consistent.
+    els.typeSuggestions.innerHTML = typeGroups()
+      .map((g) => `<option value="${escapeHtml(g.label)}"></option>`).join("");
+  }
+
+  // Put the selected test's type color everywhere that test is referenced.
+  function applyTypeAccents() {
+    const t = getCurrentTest();
+    const color = typeColorOf(t);
+    if (color) document.documentElement.style.setProperty("--test-accent", color);
+    else document.documentElement.style.removeProperty("--test-accent");
+    els.sheetTitle.innerHTML = "Class sheet " + typeChip(t);
+    renderTitleDate();
+    syncTestTitle();
+  }
+
+  // Mirror the selected test's type color into the color picker.
+  function syncTypeColorInput() {
+    const t = getCurrentTest();
+    const color = typeColorOf(t);
+    els.testTypeColor.style.background = color || "#aab2bf";
+    els.testTypeColor.disabled = !color;
+    if (!color) closeColorMenu();
+    els.typeColorMenu.querySelectorAll(".color-option").forEach((b) => {
+      const on = color != null && b.getAttribute("data-color").toLowerCase() === color.toLowerCase();
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  function openColorMenu() {
+    if (els.testTypeColor.disabled) return;
+    els.typeColorMenu.hidden = false;
+    els.testTypeColor.setAttribute("aria-expanded", "true");
+  }
+
+  function closeColorMenu() {
+    els.typeColorMenu.hidden = true;
+    els.testTypeColor.setAttribute("aria-expanded", "false");
   }
 
   function deleteTest() {
@@ -391,11 +679,11 @@
   // live Setup form (Test name + Class list edit the selected test directly).
   function createTest() {
     syncCurrentTest();
-    // Carry the roster (and question count) over from the current test.
+    // Carry the roster, question count and type over from the current test.
     const prev = getCurrentTest();
     const names = prev ? prev.students.map((s) => s.name) : [];
     const nq = prev ? prev.numQuestions : Math.max(1, Math.min(100, parseInt(els.numQuestions.value, 10) || 10));
-    const t = makeTest("New Test", nq, names);
+    const t = makeTest("New Test", nq, names, prev ? prev.type : "");
     tests.push(t);
     currentTestId = t.id;
     loadTestIntoGlobals(t);
@@ -419,7 +707,33 @@
     if (!t) return;
     t.name = els.testName.value;
     renderTestOptions();
-    syncTestTitle();
+    if (analysisMode.kind === "type") updateAnalysis(); // bar labels use test names
+    else syncTestTitle();
+    refreshStudentTabIfActive();
+    persist();
+  }
+
+  function applyTypeEdit() {
+    const t = getCurrentTest();
+    if (!t) return;
+    t.type = els.testType.value;
+    pruneTypeColors(); // before picking a color, so half-typed names don't hold one
+    syncTypeColorInput();
+    updateAnalysis();  // subject membership may have changed
+    renderTestOptions();
+    applyTypeAccents();
+    persist();
+  }
+
+  // Recolors every test of the current test's type.
+  function applyTypeColorEdit(color) {
+    const t = getCurrentTest();
+    if (!t || !typeKeyOf(t)) return;
+    typeColors[typeKeyOf(t)] = color;
+    syncTypeColorInput();
+    if (analysisMode.kind === "type") updateAnalysis();
+    renderTestOptions();
+    applyTypeAccents();
     persist();
   }
 
@@ -440,6 +754,7 @@
     renderBody();
     if (pinnedIndex != null) renderPinned();
     updateAnalysis();
+    refreshStudentTabIfActive();
     persist();
   }
 
@@ -473,13 +788,15 @@
     persist();
   }
 
-  // The Setup-tab "Clear" button empties the selected test's name and roster.
+  // The Setup-tab "Clear" button empties the selected test's name, type and roster.
   function clearSetupForm() {
     if (!getCurrentTest()) return;
-    if (students.length && !window.confirm("Clear this test's name and class list?")) return;
+    if (students.length && !window.confirm("Clear this test's name, type and class list?")) return;
     els.testName.value = "";
+    els.testType.value = "";
     els.classList.value = "";
     applyNameEdit();
+    applyTypeEdit();
     applyClassListEdit();
     els.testName.focus();
   }
@@ -572,6 +889,7 @@
     renderFoot();
     if (pinnedIndex === r) renderPinned();
     updateAnalysis();
+    refreshStudentTabIfActive();
     persist();
   }
 
@@ -756,7 +1074,33 @@
     els.gradeFoot.innerHTML = html;
   }
 
+  // A subject view whose type no longer exists falls back to the single test.
+  function validateAnalysisMode() {
+    if (analysisMode.kind === "type" && !tests.some((t) => typeKeyOf(t) === analysisMode.key)) {
+      analysisMode = { kind: "test" };
+    }
+  }
+
   function updateAnalysis() {
+    validateAnalysisMode();
+    if (analysisMode.kind === "type") updateAnalysisForType(analysisMode.key);
+    else updateAnalysisForTest();
+  }
+
+  // Re-render the Analysis tab after its dropdown changes mode.
+  function renderAnalysis() {
+    updateAnalysis();
+    renderTestOptions();
+    persist();
+  }
+
+  function updateAnalysisForTest() {
+    // Single-test view: reset anything the subject view relabels.
+    els.analysisPanel.style.removeProperty("--test-accent");
+    els.hardestTitle.textContent = "Hardest questions";
+    els.easiestTitle.textContent = "Easiest questions";
+    syncTestTitle();
+
     // ---- per-student ----
     let totalCorrect = 0, totalAttempted = 0, totalWrong = 0, fullyDone = 0;
     const perStudent = students.map((stu) => {
@@ -813,6 +1157,7 @@
         "Students at or above 70%"),
       card(`${fullyDone}/${students.length}`, "Graded", "Rows marked Done"),
     ].join("");
+    els.avgChipNum.textContent = pc(meanPct);
 
     // ---- insights strip (auto-generated highlights) ----
     // Each highlight gets a tooltip naming the students (or questions) it refers to.
@@ -871,7 +1216,7 @@
       if (maxHalf >= 2) {
         const tied = perStudentHalf.filter((s) => s.half === maxHalf).map((s) => s.name);
         ins.push({ tone: "info",
-          text: `Most partial answers: ${tied.length > 1 ? tied.length + " students" : tied[0]} with ${maxHalf} half marks.`,
+          text: `Most partial answers: ${tied.length > 1 ? tied.length + " students" : escapeHtml(tied[0])} with ${maxHalf} half marks.`,
           tip: `${maxHalf} half marks: ${joinNames(tied)}` });
       }
     }
@@ -913,6 +1258,141 @@
       '<li class="meta">No students graded yet.</li>';
     els.strugglingList.innerHTML =
       gradedStudents.slice().sort((a, b) => a.pct - b.pct).slice(0, 5).map(sLi).join("") ||
+      '<li class="meta">No students graded yet.</li>';
+  }
+
+  // -------------------------------------------------------------------------
+  // Subject view — every test of one type, oldest first. Fills the same DOM
+  // slots as the single-test view so the layout and Print PDF keep working.
+  // -------------------------------------------------------------------------
+  function updateAnalysisForType(key) {
+    const group = tests.filter((t) => typeKeyOf(t) === key).sort(byCreated);
+    const label = typeLabelOf(group[0]);
+    const color = typeColorOf(group[0]);
+    const sums = group.map((t) => ({ t: t, S: summarizeTest(t) }));
+    const testName = (t) => t.name || "Untitled test";
+
+    els.analysisPanel.style.setProperty("--test-accent", color);
+    els.analysisTitle.innerHTML = `${escapeHtml(label)} ${typeChip(group[0], "title-chip")} ` +
+      `<span class="meta title-meta">${group.length} test${group.length !== 1 ? "s" : ""}</span>`;
+    els.hardestTitle.textContent = "Lowest-average tests";
+    els.easiestTitle.textContent = "Highest-average tests";
+
+    // ---- per-student aggregate across the subject (matched by name) ----
+    const byKey = {}, order = [];
+    sums.forEach(({ S }) => {
+      S.perStudent.forEach((s) => {
+        const k = nameKey(s.name);
+        if (S.byName[k] !== s) return; // first roster match per test only
+        if (!byKey[k]) { byKey[k] = { name: s.name, pcts: [], testsTaken: 0 }; order.push(k); }
+        byKey[k].testsTaken++;
+        if (s.attempted > 0) byKey[k].pcts.push(s.pct); // date order (group is sorted)
+      });
+    });
+    const people = order.map((k) => {
+      const p = byKey[k];
+      const n = p.pcts.length;
+      return {
+        name: p.name, testsTaken: p.testsTaken, graded: n,
+        avgPct: n ? Math.round(p.pcts.reduce((a, b) => a + b, 0) / n) : null,
+        first: n ? p.pcts[0] : null, last: n ? p.pcts[n - 1] : null,
+      };
+    });
+    const gradedPeople = people.filter((p) => p.graded > 0);
+    const avgs = gradedPeople.map((p) => p.avgPct);
+    const n = avgs.length;
+    const meanPct = n ? Math.round(avgs.reduce((a, b) => a + b, 0) / n) : null;
+    const meets = gradedPeople.filter((p) => p.avgPct >= 70);
+    const nearly = gradedPeople.filter((p) => p.avgPct >= 51 && p.avgPct < 70);
+    const notMeet = gradedPeople.filter((p) => p.avgPct <= 50);
+
+    // ---- stat cards + hero chip ----
+    const pc = (v) => (v == null ? "—" : v + "%");
+    els.statCards.innerHTML = [
+      card(people.length, "Students", "Unique students across these tests"),
+      card(group.length, "Tests"),
+      card(pc(meanPct), "Class average", "Mean of each student's subject average"),
+      card(n ? Math.min.apply(null, avgs) + "–" + Math.max.apply(null, avgs) + "%" : "—", "Range",
+        "Lowest to highest student average"),
+      card(n ? `${meets.length}/${n} <span class="num-sub">${Math.round((meets.length / n) * 100)}%</span>` : "—",
+        "Students Meeting", "Students averaging 70% or more"),
+      card(`${n}/${people.length}`, "Graded", "Students with at least one graded test"),
+    ].join("");
+    els.avgChipNum.textContent = pc(meanPct);
+
+    // ---- highlights ----
+    const joinNames = (arr) => (arr.length ? arr.join(", ") : "(none)");
+    const names = (arr) => arr.map((p) => p.name);
+    const ins = [];
+    if (meanPct != null) ins.push({ tone: "info",
+      text: `${escapeHtml(label)} average: ${meanPct}% across ${group.length} test${group.length !== 1 ? "s" : ""}.`,
+      tip: group.map((t, i) => `${testName(t)}: ${pc(sums[i].S.mean)}`).join("\n") });
+    if (n) ins.push({ tone: notMeet.length > meets.length ? "warn" : "good",
+      text: `By average: ${meets.length} meet, ${nearly.length} nearly, ${notMeet.length} do not meet (of ${n}).`,
+      tip: `Meets: ${joinNames(names(meets))}\nNearly: ${joinNames(names(nearly))}\nDoes not meet: ${joinNames(names(notMeet))}` });
+
+    const gradedTests = sums.filter((x) => x.S.mean != null);
+    if (gradedTests.length) {
+      const best = gradedTests.slice().sort((a, b) => b.S.mean - a.S.mean)[0];
+      const low = gradedTests.slice().sort((a, b) => a.S.mean - b.S.mean)[0];
+      ins.push({ tone: "good", text: `Highest-average test: ${escapeHtml(testName(best.t))} (${best.S.mean}%).` });
+      if (gradedTests.length > 1) ins.push({ tone: low.S.mean <= 50 ? "bad" : "warn",
+        text: `Lowest-average test: ${escapeHtml(testName(low.t))} (${low.S.mean}%).` });
+    }
+    if (gradedTests.length >= 2) {
+      const a = gradedTests[0].S.mean, b = gradedTests[gradedTests.length - 1].S.mean, d = b - a;
+      ins.push({ tone: d > 0 ? "good" : d < 0 ? "bad" : "info",
+        text: d === 0 ? `Class average held steady at ${b}% from first to latest test.`
+          : `Class average ${d > 0 ? "rose" : "fell"} ${Math.abs(d)} points from first to latest test (${a}% → ${b}%).`,
+        tip: `${testName(gradedTests[0].t)} → ${testName(gradedTests[gradedTests.length - 1].t)}` });
+    }
+    const moved = gradedPeople.filter((p) => p.graded >= 2).map((p) => ({ name: p.name, d: p.last - p.first }));
+    const gains = moved.filter((p) => p.d > 0).sort((x, y) => y.d - x.d);
+    const drops = moved.filter((p) => p.d < 0).sort((x, y) => x.d - y.d);
+    if (gains.length) ins.push({ tone: "good",
+      text: `Most improved (first → latest): ${gains.slice(0, 3).map((p) => `${escapeHtml(p.name)} (+${p.d})`).join(", ")}.`,
+      tip: gains.map((p) => `${p.name} +${p.d}`).join("\n") });
+    if (drops.length) ins.push({ tone: "warn",
+      text: `Dropped most (first → latest): ${drops.slice(0, 3).map((p) => `${escapeHtml(p.name)} (−${-p.d})`).join(", ")}.`,
+      tip: drops.map((p) => `${p.name} −${-p.d}`).join("\n") });
+    const partial = people.filter((p) => p.testsTaken < group.length);
+    if (partial.length) ins.push({ tone: "info",
+      text: `${partial.length} student${partial.length !== 1 ? "s are" : " is"} on only some of the tests.`,
+      tip: partial.map((p) => `${p.name} (${p.testsTaken} of ${group.length})`).join("\n") });
+    const unfinished = group.filter((t) => t.students.some((s) => !s.done));
+    if (unfinished.length) ins.push({ tone: "warn",
+      text: `${unfinished.length} test${unfinished.length !== 1 ? "s" : ""} not yet fully graded.`,
+      tip: `Not fully graded: ${joinNames(unfinished.map(testName))}` });
+
+    els.insightStrip.innerHTML = ins.length
+      ? ins.map((i) => `<div class="insight tone-${i.tone}" data-tip="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
+      : '<div class="insight tone-info">Start grading to see insights.</div>';
+
+    // ---- charts: pie by subject average; one bar per test (date order) ----
+    renderScorePie(gradedPeople.map((p) => ({ name: p.name, pct: p.avgPct, done: true, attempted: 1 })));
+    const short = (s) => (s.length > 8 ? s.slice(0, 7) + "…" : s);
+    renderQuestionBars(sums.map((x) => ({ pct: x.S.mean })), {
+      title: "Class average by test",
+      labels: sums.map((x) => short(testName(x.t))),
+      tips: sums.map((x) => `${testName(x.t)}: ${x.S.mean == null ? "not graded" : x.S.mean + "% class average"}`),
+    });
+
+    // ---- lowest / highest-average tests ----
+    const tLi = (x) => `<li>${escapeHtml(testName(x.t))} <span class="meta">${x.S.mean}% (${x.S.n} graded)</span></li>`;
+    els.hardestList.innerHTML =
+      gradedTests.slice().sort((a, b) => a.S.mean - b.S.mean).slice(0, 3).map(tLi).join("") ||
+      '<li class="meta">No tests graded yet.</li>';
+    els.easiestList.innerHTML =
+      gradedTests.slice().sort((a, b) => b.S.mean - a.S.mean).slice(0, 3).map(tLi).join("") ||
+      '<li class="meta">No tests graded yet.</li>';
+
+    // ---- top performers / needs attention, by subject average ----
+    const pLi = (p) => `<li>${escapeHtml(p.name)} <span class="meta">avg ${p.avgPct}% over ${p.graded} test${p.graded !== 1 ? "s" : ""}</span></li>`;
+    els.topList.innerHTML =
+      gradedPeople.slice().sort((a, b) => b.avgPct - a.avgPct).slice(0, 5).map(pLi).join("") ||
+      '<li class="meta">No students graded yet.</li>';
+    els.strugglingList.innerHTML =
+      gradedPeople.slice().sort((a, b) => a.avgPct - b.avgPct).slice(0, 5).map(pLi).join("") ||
       '<li class="meta">No students graded yet.</li>';
   }
 
@@ -985,8 +1465,14 @@
     return "#d83a3a";
   }
 
-  function renderQuestionBars(perQuestion) {
-    const W = 340, H = 170;
+  // items: [{ q, pct, correct, attempted }] (one per question), or anything with
+  // a `pct` when opts.labels/opts.tips are given (the subject view: one bar per test).
+  // opts.title sets the heading above the chart.
+  function renderQuestionBars(perQuestion, opts) {
+    opts = opts || {};
+    els.barTitle.textContent = opts.title || "% correct by question";
+    const vb = els.questionBars.viewBox.baseVal;
+    const W = vb && vb.width ? vb.width : 340, H = vb && vb.height ? vb.height : 170;
     const m = { top: 10, right: 6, bottom: 22, left: 26 };
     const plotW = W - m.left - m.right;
     const plotH = H - m.top - m.bottom;
@@ -1007,23 +1493,27 @@
     // Bars
     const slot = plotW / Math.max(1, n);
     const bw = Math.min(slot * 0.7, 26);
-    const labelEvery = n <= 20 ? 1 : Math.ceil(n / 15);
+    // Text labels (test names) need more room than question numbers.
+    const labelEvery = opts.labels
+      ? Math.max(1, Math.ceil(n * 40 / plotW))
+      : (n <= 20 ? 1 : Math.ceil(n / 15));
 
     perQuestion.forEach((s, i) => {
       const cx = m.left + slot * (i + 0.5);
       const x = cx - bw / 2;
-      const pct = s.pct === null ? 0 : s.pct;
+      const pct = s.pct == null ? 0 : s.pct;
       const h = plotH * (pct / 100);
       const top = m.top + plotH - h;
-      const title = s.attempted
+      const title = opts.tips ? opts.tips[i] : s.attempted
         ? `Q${s.q}: ${s.pct}% (${s.correct}/${s.attempted})`
         : `Q${s.q}: not graded`;
       svg += `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" ` +
-        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct)}" ` +
+        `height="${Math.max(0, h).toFixed(1)}" rx="1.5" fill="${barColor(s.pct == null ? null : s.pct)}" ` +
         `data-tip="${escapeHtml(title)}"></rect>`;
       if (i % labelEvery === 0) {
+        const label = opts.labels ? opts.labels[i] : s.q;
         svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
-          `font-size="8" fill="#1f2733">${s.q}</text>`;
+          `font-size="8" fill="#1f2733">${escapeHtml(String(label))}</text>`;
       }
     });
 
@@ -1038,15 +1528,6 @@
   // Compare tab — two tests side by side (e.g. pre-test vs post-test).
   // Read-only: never modifies tests or saved data. Students match by name.
   // -------------------------------------------------------------------------
-  let compareAId = null, compareBId = null;
-
-  const BANDS = ["notmeet", "nearly", "meets"]; // low -> high
-  const BAND_LABEL = { meets: "Meets", nearly: "Nearly meets", notmeet: "Does not meet" };
-  const BAND_COLOR = { meets: "#1f9d55", nearly: "#e0a400", notmeet: "#d83a3a" };
-  const CMP_BEFORE_COLOR = "#b3c3e0", CMP_AFTER_COLOR = "#8b5fcf";
-
-  const nameKey = (s) => String(s || "").trim().toLowerCase();
-
   function summarizeTest(t) {
     const perStudent = t.students.map((stu) => ({ name: stu.name, ...studentStats(stu) }));
     const graded = perStudent.filter((s) => s.attempted > 0);
@@ -1091,9 +1572,9 @@
     return '<span class="delta flat">no change</span>';
   }
 
-  function cmpCard(lbl, before, after, delta, sub, tip) {
+  function cmpCard(lbl, before, after, delta, sub, tip, cls) {
     const t = tip ? ` data-tip="${escapeHtml(tip)}"` : "";
-    return `<div class="stat-card cmp-card"${t}><div class="lbl">${lbl}</div>` +
+    return `<div class="stat-card cmp-card ${cls || ""}"${t}><div class="lbl">${lbl}</div>` +
       `<div class="cmp-vals"><span class="cmp-before">${before}</span><span class="cmp-to">→</span>` +
       `<span class="num">${after}</span></div>` +
       (sub ? `<div class="cmp-sub">${sub}</div>` : "") + delta + "</div>";
@@ -1114,30 +1595,36 @@
       compareAId = tests[i > 0 ? i - 1 : 1].id;
     }
 
-    const opts = tests
-      .map((t) => `<option value="${t.id}">${escapeHtml(disambiguatedName(t))}</option>`)
-      .join("");
+    const opts = tests.map(testOptionHtml).join("");
+    const tA = tests.find((t) => t.id === compareAId);
+    const tB = tests.find((t) => t.id === compareBId);
     els.compareASelect.innerHTML = opts;
     els.compareBSelect.innerHTML = opts;
     els.compareASelect.value = compareAId;
     els.compareBSelect.value = compareBId;
+    tintSelect(els.compareASelect, tA);
+    tintSelect(els.compareBSelect, tB);
 
-    const A = summarizeTest(tests.find((t) => t.id === compareAId));
-    const B = summarizeTest(tests.find((t) => t.id === compareBId));
+    const A = summarizeTest(tA);
+    const B = summarizeTest(tB);
 
-    els.compareTitle.innerHTML =
-      `${escapeHtml(A.label)} <span class="cmp-arrow">→</span> ${escapeHtml(B.label)}`;
+    const side = (t, S) => {
+      const c = typeColorOf(t);
+      return `<span${c ? ` style="color:${c}"` : ""}>${escapeHtml(S.label)}</span> ${typeChip(t, "title-chip")}`;
+    };
+    els.compareTitle.innerHTML = `${side(tA, A)} <span class="cmp-arrow">→</span> ${side(tB, B)}`;
     els.compareSame.hidden = compareAId !== compareBId;
 
-    // ---- stat cards ----
+    // ---- Class average is the hero stat; the other four sit in "More stats" at the bottom ----
     const pc = (v) => (v == null ? "—" : v + "%");
-    els.compareCards.innerHTML = [
+    els.compareMain.innerHTML =
       cmpCard("Class average", pc(A.mean), pc(B.mean), deltaChip(A.mean, B.mean, " pts"),
-        "", "Mean of student scores (graded only)"),
+        "", "Mean of student scores (graded only)", "cmp-card-main");
+    els.compareMinor.innerHTML = [
       cmpCard("Students meeting", pc(A.meetsPct), pc(B.meetsPct), deltaChip(A.meetsPct, B.meetsPct, " pts"),
         `${A.meets} of ${A.n} → ${B.meets} of ${B.n}`, "Share of graded students at or above 70%"),
-      cmpCard("Lowest score", pc(A.low), pc(B.low), deltaChip(A.low, B.low, " pts")),
-      cmpCard("Highest score", pc(A.high), pc(B.high), deltaChip(A.high, B.high, " pts")),
+      cmpCard("Lowest score", pc(A.low), pc(B.low), deltaChip(A.low, B.low, " pts"), "", "Lowest student score"),
+      cmpCard("Highest score", pc(A.high), pc(B.high), deltaChip(A.high, B.high, " pts"), "", "Highest student score"),
       cmpCard("Students graded", A.n, B.n, deltaChip(A.n, B.n, ""), "", "Students with at least one answer marked"),
     ].join("");
 
@@ -1147,7 +1634,7 @@
         const c = S.bandNames[b].length;
         const tip = `${BAND_LABEL[b]} (${c}):\n` + S.bandNames[b].join("\n");
         return `<div class="band-seg" style="width:${(c / S.n) * 100}%;background:${BAND_COLOR[b]}" ` +
-          `data-tip="${escapeHtml(tip)}">${c}</div>`;
+          `data-tip="${escapeHtml(tip)}"><span class="band-num">${c}</span></div>`;
       }).join("");
       return `<div class="band-row"><span class="band-row-lbl">${label}</span>` +
         `<div class="band-track">${segs || '<div class="band-empty">no data</div>'}</div></div>`;
@@ -1238,27 +1725,68 @@
       ? ins.map((i) => `<div class="insight tone-${i.tone}" data-tip="${escapeHtml(i.tip || "")}">${i.text}</div>`).join("")
       : '<div class="insight tone-info">Grade both tests to see how the class changed.</div>';
 
-    // ---- student table: biggest gains first, then anyone missing a score ----
+    // ---- top growth: the top 5 gains, minus students hidden for this pair.
+    // Hiding someone leaves their slot empty — nobody else moves up into it. ----
+    const pair = compareAId + "|" + compareBId;
+    const hidden = hiddenGrowth[pair] || [];
+    const top5 = both.filter((r) => r.change > 0)
+      .sort((x, y) => y.change - x.change)
+      .slice(0, 5);
+    const growth = top5.filter((r) => hidden.indexOf(nameKey(r.name)) === -1);
+    els.growthGrid.innerHTML = !top5.length
+      ? '<div class="insight tone-info">No gains to show yet.</div>'
+      : growth.map((r) =>
+        `<div class="growth-card" data-tip="${escapeHtml(`${r.name}: ${r.aPct}% → ${r.bPct}%`)}">` +
+        `<button class="growth-x" type="button" data-key="${escapeHtml(nameKey(r.name))}" data-tip="Hide this student from the panel">×</button>` +
+        `<div class="growth-name">${escapeHtml(r.name)}</div>` +
+        `<div class="growth-delta up">▲ +${r.change} pts</div></div>`).join("");
+    els.growthFoot.hidden = false; // the tucked-away Show Hidden link at the page bottom
+    els.showHiddenBtn.disabled = hidden.length === 0;
+    els.hiddenCount.textContent = hidden.length ? `${hidden.length} hidden` : "";
+
+    // ---- student tables: biggest gains first, then anyone missing a score ----
     rows.sort((x, y) => {
       if (x.change != null && y.change != null) return y.change - x.change;
       if (x.change != null) return -1;
       if (y.change != null) return 1;
       return 0;
     });
-    const scoreCell = (entry, pct) =>
-      !entry ? '<span class="cmp-missing">not on test</span>' : pct == null ? "—" : pct + "%";
-    const bandCell = (pct) => {
-      if (pct == null) return '<span class="cmp-missing">—</span>';
-      const b = scoreBand(pct);
-      return `<span class="band-dot" style="background:${BAND_COLOR[b]}"></span>${BAND_LABEL[b]}`;
+    const scoreCell = (entry, pct) => {
+      if (!entry) return '<td class="num-col score-cell"><span class="cmp-missing">not on test</span></td>';
+      if (pct == null) return '<td class="num-col score-cell">—</td>';
+      return `<td class="num-col score-cell band-${scoreBand(pct)}">${pct}%</td>`;
     };
-    els.compareRows.innerHTML = rows.map((r) =>
+    const rowHtml = (r) =>
       `<tr><td>${escapeHtml(r.name)}</td>` +
-      `<td class="num-col">${scoreCell(r.a, r.aPct)}</td>` +
-      `<td class="num-col">${scoreCell(r.b, r.bPct)}</td>` +
-      `<td class="num-col">${deltaChip(r.aPct, r.bPct, "")}</td>` +
-      `<td>${bandCell(r.aPct)} <span class="cmp-to">→</span> ${bandCell(r.bPct)}</td></tr>`
-    ).join("") || '<tr><td colspan="5" class="cmp-missing">No students on either test.</td></tr>';
+      scoreCell(r.a, r.aPct) +
+      '<td class="arrow-col">&rarr;</td>' +
+      scoreCell(r.b, r.bPct) +
+      `<td class="num-col">${deltaChip(r.aPct, r.bPct, "")}</td></tr>`;
+    // Two side-by-side tables (left gets the extra row when odd); short classes use one.
+    const split = rows.length > 6;
+    const half = split ? Math.ceil(rows.length / 2) : rows.length;
+    els.compareRows.innerHTML = rows.slice(0, half).map(rowHtml).join("") ||
+      '<tr><td colspan="5" class="cmp-missing">No students on either test.</td></tr>';
+    els.compareRows2.innerHTML = split ? rows.slice(half).map(rowHtml).join("") : "";
+    els.compareRows2.closest("table").hidden = !split;
+    els.compareTables.classList.toggle("single", !split);
+    fitCompareTitle(); // last, once the Class average card beside it has its width
+  }
+
+  // Shrink the "Before → After" title until it fits on one line.
+  function fitCompareTitle() {
+    const el = els.compareTitle;
+    if (!el.offsetParent) return; // Compare tab not showing — nothing to measure
+    el.style.fontSize = "";
+    if (el.scrollWidth <= el.clientWidth) return;
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    // Jump close with the overflow ratio, then step down to settle.
+    size = Math.floor(size * el.clientWidth / el.scrollWidth);
+    el.style.fontSize = size + "px";
+    while (el.scrollWidth > el.clientWidth && size > 12) {
+      size -= 1;
+      el.style.fontSize = size + "px";
+    }
   }
 
   // Grouped bars: Before (light) and After (purple) per question number.
@@ -1296,14 +1824,111 @@
           `height="${h.toFixed(1)}" rx="1.5" fill="${color}" data-tip="${escapeHtml(tip)}"></rect>`;
       });
       if (i % labelEvery === 0) {
+        // Green/bold if the question improved, red/bold if it fell.
+        const changed = a != null && b != null && a !== b;
+        const fill = !changed ? "#1f2733" : b > a ? "#1f9d55" : "#d83a3a";
         svg += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" ` +
-          `font-size="8" fill="#1f2733">${i + 1}</text>`;
+          `font-size="8" fill="${fill}"${changed ? ' font-weight="700"' : ""}>${i + 1}</text>`;
       }
     }
 
     svg += `<line x1="${m.left}" y1="${m.top}" x2="${m.left}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
     svg += `<line x1="${m.left}" y1="${m.top + plotH}" x2="${W - m.right}" y2="${m.top + plotH}" stroke="#1f2733" stroke-width="1.5"/>`;
     els.compareBars.innerHTML = svg;
+  }
+
+  // -------------------------------------------------------------------------
+  // Student tab — one student's work across every test, grouped by type.
+  // Read-only. Students match across tests by name (case-insensitive).
+  // -------------------------------------------------------------------------
+  function renderStudentTab() {
+    syncCurrentTest();
+
+    // Roster across all tests: nameKey -> first spelling seen.
+    const roster = {};
+    tests.forEach((t) => t.students.forEach((s) => {
+      const k = nameKey(s.name);
+      if (k && !(k in roster)) roster[k] = s.name;
+    }));
+    const keys = Object.keys(roster).sort((a, b) => roster[a].localeCompare(roster[b]));
+
+    els.studentEmpty.hidden = keys.length > 0;
+    els.studentPanel.hidden = keys.length === 0;
+    if (!keys.length) {
+      els.studentSelect.innerHTML = "";
+      els.studentMeta.textContent = "";
+      return;
+    }
+    if (keys.indexOf(studentSelKey) === -1) studentSelKey = keys[0];
+    els.studentSelect.innerHTML = keys
+      .map((k) => `<option value="${escapeHtml(k)}">${escapeHtml(roster[k])}</option>`).join("");
+    els.studentSelect.value = studentSelKey;
+
+    // Every test this student is on (first roster match per test).
+    const entries = [];
+    tests.forEach((t) => {
+      const stu = t.students.find((s) => nameKey(s.name) === studentSelKey);
+      if (stu) entries.push({ test: t, stu, stats: studentStats(stu), createdAt: t.createdAt });
+    });
+    const graded = entries.filter((e) => e.stats.attempted > 0);
+
+    els.studentTitle.textContent = roster[studentSelKey];
+    els.studentMeta.textContent = `on ${entries.length} test${entries.length !== 1 ? "s" : ""}`;
+
+    // ---- stat cards ----
+    const avg = graded.length ? Math.round(graded.reduce((a, e) => a + e.stats.pct, 0) / graded.length) : null;
+    const best = graded.slice().sort((a, b) => b.stats.pct - a.stats.pct)[0];
+    const worst = graded.slice().sort((a, b) => a.stats.pct - b.stats.pct)[0];
+    const byDate = graded.slice().sort(byCreated);
+    const testCard = (e, lbl) => e
+      ? card(`${e.stats.pct}% <span class="num-sub">${escapeHtml(e.test.name || "Untitled test")}</span>`, lbl, e.test.name)
+      : card("—", lbl);
+    els.studentCards.innerHTML = [
+      card(entries.length, "Tests taken"),
+      card(avg == null ? "—" : avg + "%", "Average score", "Mean of graded tests"),
+      testCard(best, "Best test"),
+      testCard(worst, "Lowest test"),
+      card(byDate.length >= 2 ? deltaChip(byDate[0].stats.pct, byDate[byDate.length - 1].stats.pct, " pts") : "—",
+        "Trend", "Oldest graded test to newest"),
+    ].join("");
+
+    // ---- groups by type: A→Z, untyped last; oldest test first within a group ----
+    const groups = {};
+    entries.forEach((e) => {
+      const k = typeKeyOf(e.test);
+      (groups[k] = groups[k] || []).push(e);
+    });
+    const groupKeys = Object.keys(groups).sort((a, b) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return typeLabelOf(groups[a][0].test).localeCompare(typeLabelOf(groups[b][0].test));
+    });
+
+    els.studentGroups.innerHTML = groupKeys.map((k) => {
+      const list = groups[k].slice().sort(byCreated);
+      const color = k ? typeColorOf(list[0].test) : null;
+      const label = k ? typeLabelOf(list[0].test) : "Untyped";
+      const g = list.filter((e) => e.stats.attempted > 0);
+      const gAvg = g.length ? Math.round(g.reduce((a, e) => a + e.stats.pct, 0) / g.length) : null;
+
+      const rowsHtml = list.map((e) => {
+        const t = e.test, s = e.stats;
+        const marks = e.stu.marks.map((m, q) =>
+          `<span class="cell state-${m}" data-tip="Q${q + 1}: ${m === "none" ? "blank" : m}">${GLYPH[m]}</span>`).join("");
+        const date = t.createdAt != null ? shortDate(t.createdAt) : "date unknown";
+        return `<div class="student-test-row">` +
+          `<div class="str-head">${typeChip(t)} <strong>${escapeHtml(t.name || "Untitled test")}</strong> ` +
+          `<span class="meta">${date} · ${t.numQuestions} question${t.numQuestions !== 1 ? "s" : ""}</span> ` +
+          `<span class="score-pill band-${scoreBand(s.pct)}">${s.attempted ? s.pct + "%" : "—"}</span>` +
+          (e.stu.done ? ' <span class="done-badge">Done ✓</span>' : "") +
+          `<button type="button" class="link-btn" data-open-test="${t.id}">Open in Grade</button></div>` +
+          `<div class="str-marks">${marks}</div></div>`;
+      }).join("");
+
+      return `<section class="student-group"${color ? ` style="--type-color:${color}"` : ""}>` +
+        `<h3><span class="type-dot"></span>${escapeHtml(label)} <span class="meta">· ${list.length} test${list.length !== 1 ? "s" : ""}` +
+        `${gAvg != null ? " · avg " + gAvg + "%" : ""}</span></h3>${rowsHtml}</section>`;
+    }).join("");
   }
 
   function card(num, lbl, tip) {
@@ -1330,6 +1955,8 @@
     const rows = [];
     rows.push(["Test Name", (t && t.name ? t.name : "").trim()]);
     rows.push(["Questions", String(numQuestions)]);
+    rows.push(["Created", t && t.createdAt != null ? new Date(t.createdAt).toISOString() : ""]);
+    rows.push(["Type", t ? (t.type || "").trim() : ""]);
     rows.push([]); // spacer
 
     const header = ["Student"];
@@ -1426,13 +2053,18 @@
 
   function loadFromCsv(text) {
     const rows = parseCsv(text);
-    let name = "", metaN = null, headerIdx = -1;
+    let name = "", metaN = null, headerIdx = -1, created = NaN, type = "";
 
+    // Metadata rows only count above the "Student" header, so a student who
+    // happens to be named e.g. "Created" isn't misread as metadata.
     rows.forEach((r, idx) => {
+      if (headerIdx !== -1) return;
       const key = (r[0] || "").trim().toLowerCase();
       if (key === "test name") name = (r[1] || "").trim();
       else if (key === "questions") metaN = parseInt(r[1], 10);
-      else if (key === "student" && headerIdx === -1) headerIdx = idx;
+      else if (key === "created") created = Date.parse((r[1] || "").trim());
+      else if (key === "type") type = (r[1] || "").trim();
+      else if (key === "student") headerIdx = idx;
     });
 
     if (headerIdx === -1) throw new Error('no "Student" header row found.');
@@ -1463,8 +2095,10 @@
     const t = {
       id: genId(),
       name: name || "Imported test",
+      type: type,
       numQuestions: qCount,
       students: roster,
+      createdAt: Number.isFinite(created) ? created : Date.now(),
       pinnedIndex: null,
       sheetCollapsed: false,
     };
@@ -1535,14 +2169,23 @@
       const INK = [31, 39, 51], MUT = [120, 120, 120];
       let y = M;
 
+      // Title + kicker: the test, or the subject (all tests of a type).
+      const subject = analysisMode.kind === "type";
+      const subjectTests = subject ? tests.filter((t) => typeKeyOf(t) === analysisMode.key) : [];
+      const subjectLabel = subject ? typeLabelOf(subjectTests[0]) || analysisMode.label : "";
+      const curTest = getCurrentTest();
+      const titleText = subject
+        ? `${subjectLabel} (${subjectTests.length} test${subjectTests.length !== 1 ? "s" : ""})`
+        : (curTest && curTest.name) || "Untitled test";
+
       // Header
       doc.setFont("helvetica", "bold").setFontSize(9).setTextColor(59, 108, 255);
-      doc.text("LIVE ANALYSIS", M, y + 4);
+      doc.text(subject ? "SUBJECT ANALYSIS · " + subjectLabel.toUpperCase() : "LIVE ANALYSIS", M, y + 4);
       doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...MUT);
       doc.text("Printed " + dateStr(), PW - M, y + 4, { align: "right" });
       y += 24;
       doc.setFont("helvetica", "bold").setFontSize(22).setTextColor(...INK);
-      doc.text(els.analysisTitle.textContent || "Untitled test", M, y);
+      doc.text(titleText, M, y);
       y += 12;
       doc.setDrawColor(226, 231, 239).line(M, y, PW - M, y);
       y += 20;
@@ -1572,7 +2215,7 @@
       const barW = CW - pieW - 20;
       const barH = barW * (bar.h / bar.w);
       doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(...INK);
-      doc.text("% correct by question", barX, chartTop + 8);
+      doc.text(els.barTitle.textContent, barX, chartTop + 8);
       doc.addImage(bar.url, "PNG", barX, chartTop + 14, barW, barH);
 
       // Pie legend under the pie
@@ -1607,8 +2250,8 @@
 
       // Hardest / Easiest
       const col2 = (CW - 20) / 2;
-      let yL = section(M, y, col2, "Hardest questions", listText(els.hardestList));
-      let yR = section(M + col2 + 20, y, col2, "Easiest questions", listText(els.easiestList));
+      let yL = section(M, y, col2, els.hardestTitle.textContent, listText(els.hardestList));
+      let yR = section(M + col2 + 20, y, col2, els.easiestTitle.textContent, listText(els.easiestList));
       y = Math.max(yL, yR) + 12;
 
       // Highlights (full width)
@@ -1619,7 +2262,7 @@
       yR = section(M + col2 + 20, y, col2, "Students needing attention", listText(els.strugglingList));
       y = Math.max(yL, yR);
 
-      const tName = getCurrentTest() ? getCurrentTest().name : "grading-export";
+      const tName = subject ? subjectLabel : (curTest ? curTest.name : "grading-export");
       const base = (tName || "grading-export").trim().replace(/[\\/:*?"<>|]/g, "-");
       const fname = `${base || "grading-export"} ${dateStr()} analysis.pdf`;
       doc.save(fname);

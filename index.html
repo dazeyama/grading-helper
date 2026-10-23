@@ -21,7 +21,10 @@
         <path d="M13.2 5C14.9 3.4 17 4.1 16.4 5.7 15.9 7 13.8 6.8 13.2 5Z" fill="#5bb673"/>
       </svg>
       Mrs. Amanita's Grading Helper ❤
-      <span class="title-date" id="titleDate"></span>
+      <span class="title-date" id="titleDateWrap">
+        <span id="titleDate"></span>
+        <span class="title-created" id="titleCreated"></span>
+      </span>
     </h1>
     <p class="tagline">Grade the whole class at once &mdash; see the data as you go.</p>
   </header>
@@ -32,6 +35,7 @@
       <button class="tab" data-tab="grade" role="tab">Grade</button>
       <button class="tab" data-tab="analysis" role="tab">Analysis</button>
       <button class="tab" data-tab="compare" role="tab">Compare</button>
+      <button class="tab" data-tab="student" role="tab">Student</button>
     </div>
 
     <!-- ===== Setup tab ===== -->
@@ -54,6 +58,16 @@
           <span class="field-label"># of questions</span>
           <input id="numQuestions" type="number" min="1" max="100" value="10" />
         </label>
+        <div class="field field-type">
+          <label class="field-label" for="testType">Type <small>(e.g. Math, Reading)</small></label>
+          <div class="type-row">
+            <input id="testType" type="text" list="typeSuggestions" placeholder="Math" />
+            <button id="testTypeColor" class="color-swatch-btn" type="button" aria-haspopup="true"
+                    aria-label="Accent color for this type" data-tip="Accent color for this type"></button>
+            <div id="typeColorMenu" class="color-menu" role="menu" hidden></div>
+          </div>
+          <datalist id="typeSuggestions"></datalist>
+        </div>
         <button id="clearBtn" class="btn ghost">Clear</button>
         <div class="save-load">
           <button id="loadBtn" class="btn primary" title="Load a test from a .csv file"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6C9.5 4.5 6 4.5 3 6v13c3-1.5 6.5-1.5 9 0 2.5-1.5 6-1.5 9 0V6c-3-1.5-6.5-1.5-9 0z"/><path d="M12 6v13"/></svg>Load CSV</button>
@@ -88,8 +102,8 @@
 
     <div class="grade-toolbar">
       <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
-        <span class="chip half">/ half (50%)</span>
-        <span class="chip wrong">✗ wrong</span> <span class="chip none">— did not participate</span></p>
+        <span class="chip wrong">✗ wrong</span>
+        <span class="chip half">/ half (50%)</span> <span class="chip none">— did not participate</span></p>
       <div class="toolbar-actions">
         <button id="clearMarksBtn" class="btn ghost" data-tip="Reset every mark and Done flag (keeps the roster and questions)">Clear</button>
         <button id="saveBtn" class="btn primary" data-tip="Download this test as a .csv file"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 13l4-4a2 2 0 1 1 3 3l-5 5a3.5 3.5 0 1 1-5-5l6-6a5 5 0 1 1 7 7l-6 6"/></svg>Save CSV</button>
@@ -99,7 +113,7 @@
     <!-- Grading grid -->
     <section class="panel grid-panel" id="gridPanel">
       <button class="sheet-header" id="sheetHeader" type="button">
-        <span>Class sheet</span>
+        <span id="sheetTitle">Class sheet</span>
         <span class="sheet-toggle" id="sheetToggle" aria-hidden="true">▾</span>
       </button>
       <div class="grid-scroll" id="gridScroll">
@@ -132,12 +146,14 @@
         <div>
           <p class="analysis-kicker">Live Analysis</p>
           <h1 class="analysis-title" id="analysisTitle">Quiz 1</h1>
+          <div class="avg-chip" id="avgChip" data-tip="Mean of student scores (graded only)"><span class="avg-num" id="avgChipNum">—</span><span class="avg-lbl">class average</span></div>
         </div>
         <button id="printPdfBtn" class="btn primary print-btn" data-tip="Save a one-page PDF report of this analysis"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-4 9 4-9 4-9-4z"/><path d="M7 11v4c0 1 2.5 2 5 2s5-1 5-2v-4"/></svg>Print PDF</button>
       </div>
 
       <div class="chart-row charts-hero">
-        <div class="chart-half pie-half">
+        <div class="chart-half pie-half" id="pieHalf">
+          <label class="toggle-label pie-toggle"><input type="checkbox" id="chartOnlyToggle" /> Chart only</label>
           <div class="pie-wrap">
             <svg id="scorePie" class="pie" viewBox="0 0 120 120" role="img"
                  aria-label="Distribution of student scores"></svg>
@@ -147,19 +163,9 @@
 
         <div class="chart-half bar-half">
           <div class="bar-wrap">
-            <h3>% correct by question</h3>
-            <svg id="questionBars" class="bar-chart" viewBox="0 0 340 170" role="img"
+            <h3 id="barTitle">% correct by question</h3>
+            <svg id="questionBars" class="bar-chart" viewBox="0 0 520 220" role="img"
                  aria-label="Percent correct for each question"></svg>
-          </div>
-          <div class="qextremes">
-            <div class="qx-box">
-              <h4>Hardest</h4>
-              <ol id="hardestList" class="mini-list"></ol>
-            </div>
-            <div class="qx-box">
-              <h4>Easiest</h4>
-              <ol id="easiestList" class="mini-list"></ol>
-            </div>
           </div>
         </div>
       </div>
@@ -186,6 +192,14 @@
             <h3>Students needing attention</h3>
             <ol id="strugglingList" class="mini-list"></ol>
           </div>
+          <div class="analysis-box">
+            <h3 id="hardestTitle">Hardest questions</h3>
+            <ol id="hardestList" class="mini-list"></ol>
+          </div>
+          <div class="analysis-box">
+            <h3 id="easiestTitle">Easiest questions</h3>
+            <ol id="easiestList" class="mini-list"></ol>
+          </div>
         </div>
       </div>
     </section>
@@ -208,15 +222,22 @@
       </div>
 
       <section class="panel analysis compare-hero">
-        <p class="analysis-kicker">Compare</p>
-        <h1 class="analysis-title" id="compareTitle"></h1>
+        <!-- Title on the left, Class average card right-aligned on the same line -->
+        <div class="cmp-head">
+          <div class="cmp-head-text">
+            <p class="analysis-kicker">Compare</p>
+            <h1 class="analysis-title" id="compareTitle"></h1>
+          </div>
+          <div class="cmp-hero-stat" id="compareMain"></div>
+        </div>
         <p class="cmp-note" id="compareSame" hidden>Both sides are the same test &mdash; pick a different test for Before or After.</p>
-
-        <div class="stats" id="compareCards"></div>
 
         <div class="chart-row">
           <div class="chart-half bar-half cmp-chart-box">
-            <h3>Where students landed</h3>
+            <div class="cmp-box-head">
+              <h3>Where students landed</h3>
+              <label class="toggle-label"><input type="checkbox" id="bandNumbersToggle" /> Show numbers</label>
+            </div>
             <div class="band-rows" id="compareBands"></div>
             <ul class="cmp-legend">
               <li data-tip="50% and below"><span class="swatch" style="background:#d83a3a"></span>Does not meet</li>
@@ -233,6 +254,13 @@
         </div>
       </section>
 
+      <!-- Top growth: biggest gains, students can be hidden per Before/After pair -->
+      <section class="panel analysis growth-panel" id="growthPanel">
+        <h3 class="section-title">Top growth</h3>
+        <p class="meta">Biggest score gains from Before to After</p>
+        <div class="growth-grid" id="growthGrid"></div>
+      </section>
+
       <!-- Collapsible (hide to conceal student names) -->
       <section class="panel analysis analysis-details" id="compareDetails">
         <button class="sheet-header" id="compareDetailsHeader" type="button">
@@ -244,23 +272,64 @@
           <div class="insights" id="compareInsights"></div>
 
           <div class="cmp-table-wrap">
-            <table class="cmp-student-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th class="num-col">Before</th>
-                  <th class="num-col">After</th>
-                  <th class="num-col">Change</th>
-                  <th>Band</th>
-                </tr>
-              </thead>
-              <tbody id="compareRows"></tbody>
-            </table>
+            <div class="cmp-tables" id="compareTables">
+              <table class="cmp-student-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th class="num-col">Before</th>
+                    <th class="arrow-col"></th>
+                    <th class="num-col">After</th>
+                    <th class="num-col">Change</th>
+                  </tr>
+                </thead>
+                <tbody id="compareRows"></tbody>
+              </table>
+              <table class="cmp-student-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th class="num-col">Before</th>
+                    <th class="arrow-col"></th>
+                    <th class="num-col">After</th>
+                    <th class="num-col">Change</th>
+                  </tr>
+                </thead>
+                <tbody id="compareRows2"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
+
+      <!-- Secondary stats (Meeting / Lowest / Highest / Graded), kept low on the page -->
+      <section class="panel analysis cmp-more-panel">
+        <h3 class="section-title">More stats</h3>
+        <div class="stats" id="compareMinor"></div>
+      </section>
     </div>
     </div><!-- /compare pane -->
+
+    <!-- ===== Student tab (read-only: one student's work across every test) ===== -->
+    <div class="tab-pane" data-pane="student">
+
+    <div class="test-switcher">
+      <label for="studentSelect">Student</label>
+      <select id="studentSelect"></select>
+      <span id="studentMeta" class="pinned-sub"></span>
+    </div>
+
+    <div id="studentEmpty" class="panel empty-state">
+      No students yet &mdash; add a class list on the <strong>Setup</strong> tab.
+    </div>
+
+    <section class="panel analysis student-hero" id="studentPanel" hidden>
+      <p class="analysis-kicker">Student</p>
+      <h1 class="analysis-title" id="studentTitle"></h1>
+      <div class="stats" id="studentCards"></div>
+      <div id="studentGroups"></div>
+    </section>
+    </div><!-- /student pane -->
   </main>
 
   <div class="pencil-deco" aria-hidden="true">
@@ -275,6 +344,13 @@
   </div>
 
   <footer class="foot">Grading Helper &middot; runs entirely in your browser</footer>
+
+  <!-- Compare tab only: restores students hidden from "Top growth". Deliberately
+       tucked under the footer so it isn't noticed while projecting. -->
+  <div class="growth-foot" id="growthFoot" hidden>
+    <button id="showHiddenBtn" class="show-hidden-btn" type="button">Show Hidden</button>
+    <span id="hiddenCount"></span>
+  </div>
 
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
 

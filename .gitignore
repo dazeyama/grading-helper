@@ -34,6 +34,10 @@ npm-debug.log*
 *.tmp
 .cache/
 
+# --- Local implementation specs (instructions for the coding assistant, not app docs) ---
+UPDATE.md
+RUBRIC.md
+
 # --- Grading data (never commit student data) ---
 # The app keeps its data in each browser's localStorage, not in this folder,
 # but any exported/test files saved here must stay out of the repo.

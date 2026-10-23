@@ -54,7 +54,11 @@
           <span class="field-label">Test name</span>
           <input id="testName" type="text" value="Quiz 1" placeholder="e.g. Unit 3 Math Test" />
         </label>
-        <label class="field field-narrow" for="numQuestions">
+        <div class="field field-narrow field-gtype">
+          <label class="field-label" for="gradingType">Grading type</label>
+          <select id="gradingType"></select>
+        </div>
+        <label class="field field-narrow" for="numQuestions" id="numQuestionsField">
           <span class="field-label"># of questions</span>
           <input id="numQuestions" type="number" min="1" max="100" value="10" />
         </label>
@@ -74,6 +78,24 @@
           <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
         </div>
       </div>
+      <!-- Rubric tests: choose / manage the rubric template -->
+      <div class="rubric-setup" id="rubricSetup" hidden>
+        <div class="field field-rubric">
+          <label class="field-label" for="rubricSelect">Rubric template</label>
+          <div class="rubric-row">
+            <select id="rubricSelect"></select>
+            <button id="rubricEditBtn" class="btn ghost" type="button" data-tip="Edit the selected rubric">Edit</button>
+            <button id="rubricDeleteBtn" class="btn danger" type="button" data-tip="Delete the selected rubric">Delete</button>
+            <button id="rubricExportBtn" class="btn ghost" type="button" data-tip="Download the selected rubric as a .csv you can read and re-import">Export</button>
+            <button id="rubricImportBtn" class="btn ghost" type="button" data-tip="Import a rubric .csv">Import</button>
+            <input id="rubricImportFile" type="file" accept=".csv,text/csv" hidden />
+            <button id="rubricPrintBtn" class="btn ghost" type="button" data-tip="Save the selected rubric (blank) as a one-page PDF">Print PDF</button>
+            <button id="rubricCreateBtn" class="btn primary" type="button">Create Rubric</button>
+          </div>
+          <p class="meta" id="rubricSummary"></p>
+        </div>
+      </div>
+
       <!-- Tags: own row, with tags used on other tests beside it (click to add) -->
       <div class="setup-tags-row">
         <div class="field field-tags">
@@ -109,9 +131,10 @@
     </section>
 
     <div class="grade-toolbar">
-      <p class="hint">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
+      <p class="hint hint-standard">Tip: click a cell to cycle <span class="chip correct">✓ correct</span>
         <span class="chip wrong">✗ wrong</span>
         <span class="chip half">/ half (50%)</span> <span class="chip none">— did not participate</span></p>
+      <p class="hint hint-rubric">Tip: pick a score per table, or click a student's name to grade with the full rubric</p>
       <div class="toolbar-actions">
         <button id="clearMarksBtn" class="btn ghost" data-tip="Reset every mark and Done flag (keeps the roster and questions)">Clear</button>
         <button id="saveBtn" class="btn primary" data-tip="Download this test as a .csv file"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 13l4-4a2 2 0 1 1 3 3l-5 5a3.5 3.5 0 1 1-5-5l6-6a5 5 0 1 1 7 7l-6 6"/></svg>Save CSV</button>
@@ -143,13 +166,17 @@
     <div class="test-switcher">
       <label for="analysisTestSelect">Test</label>
       <select id="analysisTestSelect"></select>
+      <!-- Reads as a sentence: Show tests [With | Without] tag [name ▾] -->
       <span class="tag-filter" id="analysisTagWrap" hidden>
-        <label for="analysisTagSelect">Tag</label>
+        <label for="analysisTagSelect">Show tests</label>
+        <div class="seg" id="analysisTagMode" role="radiogroup" aria-label="With or without the tag">
+          <button type="button" role="radio" data-mode="with" data-tip="Only tests that have this tag">With</button>
+          <button type="button" role="radio" data-mode="without" data-tip="Every test except ones with this tag">Without</button>
+        </div>
+        <span class="tag-word">tag</span>
         <select id="analysisTagSelect" class="tag-select" data-tip="Only list (and include in subject views) tests with — or without — this tag"></select>
-        <label class="toggle-label tag-mode" data-tip="Checked: only tests WITH the tag. Unchecked: every test WITHOUT it.">
-          <input type="checkbox" id="analysisTagInclude" checked /> <span id="analysisTagModeLbl">Include</span>
-        </label>
       </span>
+      <button type="button" class="exceeds-toggle" aria-pressed="true"><span class="ex-swatch"></span>Exceeds band <span class="ex-state">On</span></button>
     </div>
 
     <div id="analysisEmpty" class="panel empty-state">
@@ -234,6 +261,7 @@
         <button id="compareSwapBtn" class="btn ghost swap-btn" type="button" data-tip="Swap Before and After">&#8644;</button>
         <label for="compareBSelect">After</label>
         <select id="compareBSelect"></select>
+        <button type="button" class="exceeds-toggle" aria-pressed="true"><span class="ex-swatch"></span>Exceeds band <span class="ex-state">On</span></button>
       </div>
 
       <section class="panel analysis compare-hero">
@@ -254,16 +282,13 @@
               <label class="toggle-label"><input type="checkbox" id="bandNumbersToggle" /> Show numbers</label>
             </div>
             <div class="band-rows" id="compareBands"></div>
-            <ul class="cmp-legend">
-              <li data-tip="50% and below"><span class="swatch" style="background:#d83a3a"></span>Does not meet</li>
-              <li data-tip="51–69%"><span class="swatch" style="background:#e0a400"></span>Nearly meets</li>
-              <li data-tip="70% and up"><span class="swatch" style="background:#1f9d55"></span>Meets</li>
-            </ul>
+            <ul class="cmp-legend" id="compareBandLegend"></ul>
           </div>
           <div class="chart-half bar-half cmp-chart-box">
             <h3>% correct by question</h3>
             <svg id="compareBars" class="bar-chart" viewBox="0 0 340 170" role="img"
                  aria-label="Percent correct for each question, before and after"></svg>
+            <p class="cmp-note-muted" id="compareBarsNote" hidden></p>
             <ul class="cmp-legend" id="compareBarsLegend"></ul>
           </div>
         </div>
@@ -331,14 +356,18 @@
     <div class="test-switcher">
       <label for="studentSelect">Student</label>
       <select id="studentSelect"></select>
+      <!-- Reads as a sentence: Show tests [With | Without] tag [name ▾] -->
       <span class="tag-filter" id="studentTagWrap" hidden>
-        <label for="studentTagSelect">Tag</label>
+        <label for="studentTagSelect">Show tests</label>
+        <div class="seg" id="studentTagMode" role="radiogroup" aria-label="With or without the tag">
+          <button type="button" role="radio" data-mode="with" data-tip="Only tests that have this tag">With</button>
+          <button type="button" role="radio" data-mode="without" data-tip="Every test except ones with this tag">Without</button>
+        </div>
+        <span class="tag-word">tag</span>
         <select id="studentTagSelect" class="tag-select" data-tip="Only show and count tests with — or without — this tag"></select>
-        <label class="toggle-label tag-mode" data-tip="Checked: only tests WITH the tag. Unchecked: every test WITHOUT it.">
-          <input type="checkbox" id="studentTagInclude" checked /> <span id="studentTagModeLbl">Include</span>
-        </label>
       </span>
       <span id="studentMeta" class="pinned-sub"></span>
+      <button type="button" class="exceeds-toggle" aria-pressed="true"><span class="ex-swatch"></span>Exceeds band <span class="ex-state">On</span></button>
     </div>
 
     <div id="studentEmpty" class="panel empty-state">
@@ -375,6 +404,15 @@
   </div>
 
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+  <!-- Shared pop-up window (rubric editor, rubric table viewer, student rubric panel) -->
+  <div id="modalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal" id="modalDialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+      <div class="modal-head"><h2 id="modalTitle"></h2><button id="modalClose" class="modal-x" type="button" aria-label="Close">×</button></div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>
 
   <div id="nameMenu" class="name-menu" hidden>
     <button id="pinStudentBtn" class="name-menu-item" type="button">Pin Student</button>

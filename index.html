@@ -59,11 +59,11 @@
           <input id="numQuestions" type="number" min="1" max="100" value="10" />
         </label>
         <div class="field field-type">
-          <label class="field-label" for="testType">Type <small>(e.g. Math, Reading)</small></label>
+          <label class="field-label" for="testType">Subject <small>(e.g. Math, Reading)</small></label>
           <div class="type-row">
             <input id="testType" type="text" list="typeSuggestions" placeholder="Math" />
             <button id="testTypeColor" class="color-swatch-btn" type="button" aria-haspopup="true"
-                    aria-label="Accent color for this type" data-tip="Accent color for this type"></button>
+                    aria-label="Accent color for this subject" data-tip="Accent color for this subject"></button>
             <div id="typeColorMenu" class="color-menu" role="menu" hidden></div>
           </div>
           <datalist id="typeSuggestions"></datalist>
@@ -73,6 +73,14 @@
           <button id="loadBtn" class="btn primary" title="Load a test from a .csv file"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6C9.5 4.5 6 4.5 3 6v13c3-1.5 6.5-1.5 9 0 2.5-1.5 6-1.5 9 0V6c-3-1.5-6.5-1.5-9 0z"/><path d="M12 6v13"/></svg>Load CSV</button>
           <input id="loadFile" type="file" accept=".csv,text/csv" hidden />
         </div>
+      </div>
+      <!-- Tags: own row, with tags used on other tests beside it (click to add) -->
+      <div class="setup-tags-row">
+        <div class="field field-tags">
+          <label class="field-label" for="testTags">Tags <small>(comma separated)</small></label>
+          <input id="testTags" type="text" placeholder="Pre-test, Unit 3" autocomplete="off" />
+        </div>
+        <div class="tag-suggest" id="tagSuggest" hidden></div>
       </div>
 
       <div class="field setup-classlist">
@@ -135,6 +143,13 @@
     <div class="test-switcher">
       <label for="analysisTestSelect">Test</label>
       <select id="analysisTestSelect"></select>
+      <span class="tag-filter" id="analysisTagWrap" hidden>
+        <label for="analysisTagSelect">Tag</label>
+        <select id="analysisTagSelect" class="tag-select" data-tip="Only list (and include in subject views) tests with — or without — this tag"></select>
+        <label class="toggle-label tag-mode" data-tip="Checked: only tests WITH the tag. Unchecked: every test WITHOUT it.">
+          <input type="checkbox" id="analysisTagInclude" checked /> <span id="analysisTagModeLbl">Include</span>
+        </label>
+      </span>
     </div>
 
     <div id="analysisEmpty" class="panel empty-state">
@@ -316,6 +331,13 @@
     <div class="test-switcher">
       <label for="studentSelect">Student</label>
       <select id="studentSelect"></select>
+      <span class="tag-filter" id="studentTagWrap" hidden>
+        <label for="studentTagSelect">Tag</label>
+        <select id="studentTagSelect" class="tag-select" data-tip="Only show and count tests with — or without — this tag"></select>
+        <label class="toggle-label tag-mode" data-tip="Checked: only tests WITH the tag. Unchecked: every test WITHOUT it.">
+          <input type="checkbox" id="studentTagInclude" checked /> <span id="studentTagModeLbl">Include</span>
+        </label>
+      </span>
       <span id="studentMeta" class="pinned-sub"></span>
     </div>
 

@@ -19,7 +19,12 @@
   --paper: #fcfbf2;
   --rule: #cdddf0;         /* blue horizontal rule */
   --margin-line: #ecb2b6;  /* red vertical margin line */
-  --test-accent: var(--accent); /* selected test's type color (set by JS) */
+  /* Selected test's subject color, set by JS (setAccentVars). Subject colors are
+     pastels, so each comes with derived shades for borders and text. */
+  --test-accent: var(--accent);      /* fill */
+  --test-accent-line: var(--accent); /* borders */
+  --test-accent-ink: var(--accent);  /* text on white */
+  --test-accent-on: #fff;            /* text on the fill */
 }
 
 * { box-sizing: border-box; }
@@ -159,10 +164,39 @@ main {
 .color-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .type-chip {
   display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px;
-  font-size: 0.78rem; font-weight: 700; color: #fff; background: var(--type-color);
+  font-size: 0.78rem; font-weight: 700; color: var(--type-on, #fff); background: var(--type-color);
   vertical-align: middle; letter-spacing: 0; line-height: 1.4; white-space: nowrap;
 }
 .type-chip.title-chip { font-size: 0.9rem; padding: 0.15rem 0.7rem; }
+
+/* Tags: comma-separated on Setup, outline chips elsewhere, filters on
+   Analysis / Compare / Student */
+.setup-tags-row { display: flex; align-items: flex-end; gap: 0.6rem 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.field-tags { flex: 0 1 360px; }
+.field-tags input { width: 100%; }
+.tag-chip {
+  display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; color: var(--muted); line-height: 1.5;
+  background: #fff; border: 1px dashed #b9c2d0; white-space: nowrap; vertical-align: middle;
+}
+.tag-suggest { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; padding-bottom: 0.55rem; }
+.tag-suggest[hidden] { display: none; }
+.tag-suggest-lbl { font-size: 0.8rem; color: var(--muted); margin-right: 0.15rem; }
+.tag-chip.tag-add { font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.tag-chip.tag-add:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.tag-filter { display: inline-flex; align-items: center; gap: 0.6rem; margin-left: 0.6rem; }
+.tag-filter[hidden] { display: none; }
+.test-switcher select.tag-select { min-width: 130px; }
+/* A tag filter that's narrowing things gets a dashed accent so it isn't forgotten */
+.test-switcher select.tag-select.is-filtering {
+  border: 1px dashed var(--accent); color: var(--accent); font-weight: 600;
+}
+/* Exclude mode: red-tinted filter + label, so "everything WITHOUT the tag" reads clearly */
+.test-switcher select.tag-select.is-excluding { border-color: var(--wrong); color: var(--wrong); }
+.tag-mode input:disabled + span { opacity: 0.5; }
+.tag-mode.is-exclude span { color: var(--wrong); font-weight: 600; }
+.tag-mode input { accent-color: var(--accent); }
+.student-none { margin: 1.2rem 0 0; }
 .type-chip.chip-sm { font-size: 0.7rem; padding: 0 0.45rem; }
 
 textarea, input[type="text"], input[type="number"] {
@@ -222,7 +256,7 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .chip.none { background: var(--none-bg); color: var(--muted); }
 
 /* ---------- test switcher ---------- */
-.test-switcher { display: flex; align-items: center; gap: 0.6rem; }
+.test-switcher { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; row-gap: 0.5rem; }
 .test-switcher label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
 .test-switcher select {
   font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--border);
@@ -232,7 +266,7 @@ textarea:focus, input:focus { outline: 2px solid var(--accent); border-color: va
 .test-switcher .new-test-btn { margin-left: auto; white-space: nowrap; }
 
 /* ---------- pinned student ---------- */
-.pinned-panel { padding: 0.9rem 1rem 1rem; border-color: var(--test-accent); }
+.pinned-panel { padding: 0.9rem 1rem 1rem; border-color: var(--test-accent-line); }
 .pinned-bar { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 0.7rem; flex-wrap: wrap; }
 .pinned-name {
   font: inherit; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em;
@@ -344,7 +378,7 @@ tfoot td {
 tfoot td.name-col { text-align: left; color: var(--ink); }
 
 /* ---------- analysis ---------- */
-.analysis-hero { border-color: var(--test-accent); }
+.analysis-hero { border-color: var(--test-accent-line); }
 .analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .print-btn { white-space: nowrap; padding: 0.6rem 1.1rem; font-size: 0.95rem; }
 
@@ -357,7 +391,7 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 
 .analysis-kicker {
   margin: 0; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--test-accent);
+  text-transform: uppercase; color: var(--test-accent-ink);
 }
 .analysis-title {
   margin: 0.1rem 0 1rem; font-size: 2.4rem; line-height: 1.1;
@@ -369,7 +403,7 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 .avg-chip {
   display: inline-flex; align-items: baseline; gap: 0.5rem;
   padding: 0.5rem 1.1rem; border-radius: 14px;
-  background: var(--test-accent, var(--accent)); color: #fff; margin: 0.2rem 0 1rem;
+  background: var(--test-accent, var(--accent)); color: var(--test-accent-on, #fff); margin: 0.2rem 0 1rem;
 }
 .avg-num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
 .avg-lbl { font-size: 0.85rem; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -438,7 +472,7 @@ tfoot td.name-col { text-align: left; color: var(--ink); }
 /* "Chart only" toggle (top-right of the pie panel): hides the key, pie large + centered */
 .pie-half { position: relative; }
 .pie-toggle { position: absolute; top: 0.6rem; right: 0.9rem; }
-.analysis-hero .toggle-label input { accent-color: var(--test-accent); }
+.analysis-hero .toggle-label input { accent-color: var(--test-accent-ink); }
 .pie-half.chart-only { justify-content: center; }
 .pie-half.chart-only .pie-legend { display: none; }
 .charts-hero .pie-half.chart-only .pie { width: 290px; height: 290px; }

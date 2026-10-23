@@ -48,17 +48,51 @@
   // Test types (e.g. Math, Reading). The color belongs to the TYPE, not the
   // test: every test sharing a type shares one color.
   // -------------------------------------------------------------------------
-  // The 12 colors offered by the Setup tab's color picker (also used, in order,
-  // to auto-color new types). All dark enough for white chip text.
+  // The 12 pastel colors offered by the Setup tab's color picker (also used, in
+  // order, to auto-color new types). Deliberately no blue, green, yellow or red,
+  // so subject colors never look like the meets / nearly / does-not-meet bands.
+  // Pastels are too light for white text or for text on white, so text and
+  // lines use inkOf() (a dark shade of the same hue) — see below.
   const TYPE_PALETTE = [
+    "#c8b6f5", "#ffc6a5", "#92e0db", "#f7a6d2",
+    "#e3caa5", "#a68ad9", "#f8ab70", "#64c7c8",
+    "#e3a3ee", "#c29e88", "#cf9fb8", "#c4c6ce",
+  ];
+  const TYPE_PALETTE_NAMES = [
+    "Lavender", "Peach", "Aqua", "Bubblegum",
+    "Sand", "Grape", "Apricot", "Turquoise",
+    "Orchid", "Cocoa", "Mauve", "Stone",
+  ];
+  // The previous palette: subjects saved with one of these move to the color in
+  // the same slot of the new palette when a session loads.
+  const OLD_TYPE_PALETTE = [
     "#3b6cff", "#1f9d55", "#e0853a", "#8b5fcf", "#d9557f", "#0f9ba8",
     "#b07f00", "#5a6b7f", "#d83a3a", "#1e40af", "#8d5a3b", "#b8329e",
   ];
-  const TYPE_PALETTE_NAMES = [
-    "Blue", "Green", "Orange", "Purple", "Pink", "Teal",
-    "Gold", "Slate", "Red", "Navy", "Brown", "Magenta",
-  ];
   let typeColors = {};      // typeKey -> hex color (persisted)
+
+  // Same hue at a chosen lightness (0–1) — turns a pastel into a readable shade.
+  function shadeOf(hex, light) {
+    const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0, s = 0;
+    if (d) {
+      s = Math.min(0.7, d / (1 - Math.abs(max + min - 1)));
+      h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+    }
+    const c = (1 - Math.abs(2 * light - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = light - c / 2;
+    const rgb = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+      : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return "#" + rgb.map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
+  }
+  // Dark shade of a subject color, for text and lines on white.
+  const inkOf = (hex) => (hex ? shadeOf(hex, 0.32) : null);
+  // Text color to put ON a subject color: a deep same-hue shade on light colors, white on dark ones.
+  function onColorOf(hex) {
+    const [r, g, b] = hexToRgb(hex);
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5 ? shadeOf(hex, 0.2) : "#fff";
+  }
   const typeKey = (s) => String(s || "").trim().toLowerCase();
 
   function typeKeyOf(t) { return typeKey(t && t.type); }
@@ -84,19 +118,26 @@
     Object.keys(typeColors).forEach((k) => { if (!live[k]) delete typeColors[k]; });
   }
 
+  // Dark shade of a test's subject color (null when it has no subject).
+  function typeInkOf(t) { return inkOf(typeColorOf(t)); }
+
   function typeChip(t, extraClass) {  // "" when untyped
     const c = typeColorOf(t);
     if (!c) return "";
-    return `<span class="type-chip ${extraClass || ""}" style="--type-color:${c}">${escapeHtml(typeLabelOf(t))}</span>`;
+    return `<span class="type-chip ${extraClass || ""}" style="--type-color:${c};--type-on:${onColorOf(c)}">` +
+      `${escapeHtml(typeLabelOf(t))}</span>`;
   }
 
-  // Distinct non-empty types across all tests: [{ key, label, color, count }], A→Z.
-  function typeGroups() {
+  // Distinct non-empty types across `list` (default: all tests): [{ key, label, color, count }], A→Z.
+  function typeGroups(from) {
     const map = {}, list = [];
-    tests.forEach((t) => {
+    (from || tests).forEach((t) => {
       const k = typeKeyOf(t);
       if (!k) return;
-      if (!map[k]) { map[k] = { key: k, label: typeLabelOf(t), color: typeColorOf(t), count: 0 }; list.push(map[k]); }
+      if (!map[k]) {
+        map[k] = { key: k, label: typeLabelOf(t), color: typeColorOf(t), ink: typeInkOf(t), count: 0 };
+        list.push(map[k]);
+      }
       map[k].count++;
     });
     return list.sort((a, b) => a.label.localeCompare(b.label));
@@ -111,6 +152,49 @@
 
   // Student tab selection (a nameKey).
   let studentSelKey = null;
+
+  // -------------------------------------------------------------------------
+  // Tags — free-form labels per test (e.g. "Pre-test", "Unit 3"), entered on
+  // Setup as a comma-separated list. Matching ignores capitals. The Analysis
+  // and Student tabs can filter to one tag.
+  // -------------------------------------------------------------------------
+  const tagKey = (s) => String(s || "").trim().toLowerCase();
+
+  // De-duplicated (ignoring capitals), trimmed, non-empty tags.
+  function normalizeTags(arr) {
+    const seen = {}, out = [];
+    (arr || []).forEach((x) => {
+      const s = String(x == null ? "" : x).trim(), k = tagKey(s);
+      if (k && !seen[k]) { seen[k] = true; out.push(s); }
+    });
+    return out;
+  }
+  const parseTags = (text) => normalizeTags(String(text || "").split(","));
+  const tagLabel = (key) => { const g = allTags().find((x) => x.key === key); return g ? g.label : key; };
+  const hasTag = (t, key) => !key || ((t && t.tags) || []).some((x) => tagKey(x) === key);
+
+  // Every tag in use: [{ key, label, count }], A→Z (label = first spelling seen).
+  function allTags() {
+    const map = {}, list = [];
+    tests.forEach((t) => (t.tags || []).forEach((x) => {
+      const k = tagKey(x);
+      if (!map[k]) { map[k] = { key: k, label: x, count: 0 }; list.push(map[k]); }
+      map[k].count++;
+    }));
+    return list.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  // Active tag filters ("" = all tags), both remembered across sessions.
+  let analysisTag = "", studentTag = "";
+  // Include (true, default) = only tests WITH the tag; Exclude (false) = every test WITHOUT it.
+  let analysisTagInclude = true, studentTagInclude = true;
+
+  // Does test t pass a tag filter? No tag chosen = everything passes.
+  const tagFilterPasses = (t, key, include) => !key || hasTag(t, key) === include;
+
+  // " tagged “X”" / " not tagged “X”" for titles and notes ("" when no tag is chosen).
+  const tagFilterNote = (key, include) =>
+    key ? ` ${include ? "tagged" : "not tagged"} “${tagLabel(key)}”` : "";
 
   // --- elements ---
   const els = {};
@@ -131,6 +215,8 @@
       "bandNumbersToggle", "pieHalf", "chartOnlyToggle", "growthGrid", "growthFoot", "showHiddenBtn", "hiddenCount", "compareTables", "compareRows2",
       "compareBarsLegend", "compareDetails", "compareDetailsHeader", "compareInsights", "compareRows",
       "titleDate", "titleCreated", "testType", "testTypeColor", "typeColorMenu", "typeSuggestions", "sheetTitle",
+      "testTags", "tagSuggest", "analysisTagWrap", "analysisTagSelect", "studentTagWrap", "studentTagSelect",
+      "analysisTagInclude", "analysisTagModeLbl", "studentTagInclude", "studentTagModeLbl",
       "studentSelect", "studentMeta", "studentEmpty", "studentPanel", "studentTitle", "studentCards", "studentGroups",
       "avgChipNum", "barTitle", "hardestTitle", "easiestTitle",
     ].forEach((id) => (els[id] = document.getElementById(id)));
@@ -146,6 +232,32 @@
     els.classList.addEventListener("input", applyClassListEdit);
     els.numQuestions.addEventListener("change", applyQuestionCountEdit);
     els.testType.addEventListener("input", applyTypeEdit);
+    els.testTags.addEventListener("input", applyTagsEdit);
+    els.tagSuggest.addEventListener("click", (e) => {
+      const b = e.target.closest ? e.target.closest("[data-add-tag]") : null;
+      if (!b) return;
+      const cur = parseTags(els.testTags.value);
+      els.testTags.value = cur.concat([b.getAttribute("data-add-tag")]).join(", ");
+      applyTagsEdit();
+      els.testTags.focus();
+    });
+
+    // Tag filters (Analysis, Student)
+    els.analysisTagSelect.addEventListener("change", (e) => { analysisTag = e.target.value; renderAnalysis(); });
+    els.studentTagSelect.addEventListener("change", (e) => {
+      studentTag = e.target.value;
+      renderTagFilters(); // enables/disables the Include checkbox
+      renderStudentTab();
+      persist();
+    });
+    // Include / Exclude checkboxes beside the tag filters (label text follows the state).
+    els.analysisTagInclude.addEventListener("change", (e) => { analysisTagInclude = e.target.checked; renderAnalysis(); });
+    els.studentTagInclude.addEventListener("change", (e) => {
+      studentTagInclude = e.target.checked;
+      renderTagFilters();
+      renderStudentTab();
+      persist();
+    });
 
     // Type color picker: a swatch button that opens a 12-color menu.
     els.typeColorMenu.innerHTML = TYPE_PALETTE.map((c, i) =>
@@ -391,6 +503,7 @@
       students: studs,
       createdAt: createdAt,
       type: String(t.type || ""),
+      tags: Array.isArray(t.tags) ? normalizeTags(t.tags) : [],
     };
   }
 
@@ -408,6 +521,7 @@
         v: 3,
         tests: tests.map((t) => ({
           id: t.id, name: t.name, numQuestions: t.numQuestions, createdAt: t.createdAt, type: t.type || "",
+          tags: (t.tags || []).slice(),
           students: t.students.map((s) => ({ name: s.name, marks: s.marks.slice(), done: !!s.done })),
         })),
         currentTestId: currentTestId,
@@ -417,6 +531,10 @@
         analysisMode: analysisMode,
         hiddenGrowth: hiddenGrowth,
         studentSelKey: studentSelKey,
+        analysisTag: analysisTag,
+        studentTag: studentTag,
+        analysisTagInclude: analysisTagInclude,
+        studentTagInclude: studentTagInclude,
         setupName: els.testName.value,
         setupClassList: els.classList.value,
         setupNum: els.numQuestions.value,
@@ -465,7 +583,10 @@
     if (state.typeColors && typeof state.typeColors === "object") {
       Object.keys(state.typeColors).forEach((k) => {
         const c = state.typeColors[k];
-        if (typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c)) typeColors[typeKey(k)] = c;
+        if (typeof c !== "string" || !/^#[0-9a-f]{6}$/i.test(c)) return;
+        // Colors from the old (bold) palette move to the same slot of the pastel one.
+        const old = OLD_TYPE_PALETTE.indexOf(c.toLowerCase());
+        typeColors[typeKey(k)] = old !== -1 ? TYPE_PALETTE[old] : c;
       });
     }
     const am = state.analysisMode;
@@ -479,6 +600,11 @@
       });
     }
     studentSelKey = typeof state.studentSelKey === "string" ? state.studentSelKey : null;
+    // Tag filters for a tag that no longer exists are reset by renderTagFilters().
+    analysisTag = typeof state.analysisTag === "string" ? tagKey(state.analysisTag) : "";
+    studentTag = typeof state.studentTag === "string" ? tagKey(state.studentTag) : "";
+    analysisTagInclude = state.analysisTagInclude !== false; // default: Include
+    studentTagInclude = state.studentTagInclude !== false;
 
     loadTestIntoGlobals(getCurrentTest());
     applyDetailsCollapsed();
@@ -504,6 +630,7 @@
       id: genId(),
       name: (name || "Untitled test").trim() || "Untitled test",
       type: String(type || ""),
+      tags: [], // tags describe one test (e.g. "Pre-test"), so New Test doesn't copy them
       numQuestions: q,
       students: names.map((n) => ({ name: n, marks: new Array(q).fill("none"), done: false })),
       createdAt: Date.now(),
@@ -536,6 +663,7 @@
     els.numQuestions.value = t.numQuestions;
     els.classList.value = t.students.map((s) => s.name).join("\n");
     els.testType.value = t.type || "";
+    els.testTags.value = (t.tags || []).join(", ");
     syncTypeColorInput();
     renderCurrentTest();
   }
@@ -573,15 +701,31 @@
     const color = typeColorOf(t);
     const label = escapeHtml(disambiguatedName(t));
     return color
-      ? `<option value="${t.id}" style="color:${color}" data-color="${color}">● ${label}</option>`
+      ? `<option value="${t.id}" style="color:${inkOf(color)}" data-color="${color}">● ${label}</option>`
       : `<option value="${t.id}" style="color:${OPTION_INK}">${label}</option>`;
   }
 
-  // Tint a <select> with the type color of the test (or subject) it shows.
+  // Tint a <select> with the type color of the test (or subject) it shows:
+  // a pastel bar on the left, text in the color's dark shade.
   function tintSelect(sel, t) {
     const color = typeColorOf(t);
-    sel.style.borderLeft = color ? "5px solid " + color : "";
-    sel.style.color = color || "";
+    sel.style.borderLeft = color ? "6px solid " + color : "";
+    sel.style.color = color ? inkOf(color) : "";
+  }
+
+  // Set the accent custom properties on an element (documentElement, or the
+  // Analysis panel in subject view); null clears them back to the default blue.
+  function setAccentVars(el, color) {
+    const vars = {
+      "--test-accent": color,                         // fills (pastel)
+      "--test-accent-line": color && shadeOf(color, 0.6), // borders
+      "--test-accent-ink": color && inkOf(color),     // text on white
+      "--test-accent-on": color && onColorOf(color),  // text on the fill
+    };
+    Object.keys(vars).forEach((k) => {
+      if (vars[k]) el.style.setProperty(k, vars[k]);
+      else el.style.removeProperty(k);
+    });
   }
 
   function renderTestOptions() {
@@ -593,13 +737,19 @@
       tintSelect(sel, cur);
     });
 
-    // Analysis: Tests, plus Subjects (all tests of a type) when any test has a type.
+    // Tag filters first: they reset themselves if their tag has disappeared.
+    renderTagFilters();
+
+    // Analysis: Tests, plus Subjects (all tests of a subject) when any test has one.
+    // Both lists follow the Analysis tag filter; the current test always stays listed.
     validateAnalysisMode();
-    const groups = typeGroups();
+    const pool = analysisTests();
+    const listed = pool.indexOf(cur) === -1 && cur ? pool.concat([cur]) : pool;
+    const groups = typeGroups(pool);
     const sel = els.analysisTestSelect;
-    sel.innerHTML = `<optgroup label="Tests" style="color:${OPTION_INK}">${opts}</optgroup>` + (groups.length
-      ? `<optgroup label="Subjects (all tests of a type)" style="color:${OPTION_INK}">` + groups.map((g) =>
-        `<option value="type:${escapeHtml(g.key)}" style="color:${g.color}" data-color="${g.color}">` +
+    sel.innerHTML = `<optgroup label="Tests" style="color:${OPTION_INK}">${listed.map(testOptionHtml).join("")}</optgroup>` + (groups.length
+      ? `<optgroup label="Subjects (all tests in a subject)" style="color:${OPTION_INK}">` + groups.map((g) =>
+        `<option value="type:${escapeHtml(g.key)}" style="color:${g.ink}" data-color="${g.color}">` +
         `● ${escapeHtml(g.label)} — ${g.count} test${g.count !== 1 ? "s" : ""}</option>`).join("") + "</optgroup>"
       : "");
     if (analysisMode.kind === "type") {
@@ -617,9 +767,7 @@
   // Put the selected test's type color everywhere that test is referenced.
   function applyTypeAccents() {
     const t = getCurrentTest();
-    const color = typeColorOf(t);
-    if (color) document.documentElement.style.setProperty("--test-accent", color);
-    else document.documentElement.style.removeProperty("--test-accent");
+    setAccentVars(document.documentElement, typeColorOf(t));
     els.sheetTitle.innerHTML = "Class sheet " + typeChip(t);
     renderTitleDate();
     syncTestTitle();
@@ -731,6 +879,62 @@
     persist();
   }
 
+  // Tags are re-parsed on every keystroke; the box itself is left as typed.
+  function applyTagsEdit() {
+    const t = getCurrentTest();
+    if (!t) return;
+    t.tags = parseTags(els.testTags.value);
+    updateAnalysis();     // a subject view filtered by tag may gain/lose this test
+    renderTestOptions();  // refreshes the tag filters and suggestions too
+    refreshStudentTabIfActive();
+    persist();
+  }
+
+  // Setup: the tags other tests use that this test doesn't have yet, as "+ tag" buttons.
+  function renderTagSuggest() {
+    const mine = parseTags(els.testTags.value).map(tagKey);
+    const others = allTags().filter((g) => mine.indexOf(g.key) === -1);
+    els.tagSuggest.hidden = !others.length;
+    els.tagSuggest.innerHTML = others.length
+      ? '<span class="tag-suggest-lbl">Add a tag:</span>' + others.map((g) =>
+        `<button type="button" class="tag-chip tag-add" data-add-tag="${escapeHtml(g.label)}" ` +
+        `data-tip="Used on ${g.count} test${g.count !== 1 ? "s" : ""}">+ ${escapeHtml(g.label)}</button>`).join("")
+      : "";
+  }
+
+  // Fill every Tag filter <select>; a filter whose tag no longer exists resets to "All tags".
+  function renderTagFilters() {
+    const tags = allTags();
+    const keys = tags.map((g) => g.key);
+    if (keys.indexOf(analysisTag) === -1) analysisTag = "";
+    if (keys.indexOf(studentTag) === -1) studentTag = "";
+    const opts = '<option value="">All tags</option>' + tags.map((g) =>
+      `<option value="${escapeHtml(g.key)}">${escapeHtml(g.label)} (${g.count})</option>`).join("");
+    [[els.analysisTagSelect, analysisTag, els.analysisTagInclude, els.analysisTagModeLbl, analysisTagInclude],
+      [els.studentTagSelect, studentTag, els.studentTagInclude, els.studentTagModeLbl, studentTagInclude],
+    ].forEach(([sel, v, box, lbl, include]) => {
+      sel.innerHTML = opts;
+      sel.value = v;
+      sel.classList.toggle("is-filtering", !!v);
+      sel.classList.toggle("is-excluding", !!v && !include);
+      // Include / Exclude only means something once a tag is chosen.
+      box.checked = include;
+      box.disabled = !v;
+      lbl.textContent = include ? "Include" : "Exclude";
+      lbl.parentNode.classList.toggle("is-exclude", !include);
+    });
+    // No tags anywhere yet → hide the filters entirely.
+    const none = !tags.length;
+    els.analysisTagWrap.hidden = none;
+    els.studentTagWrap.hidden = none;
+    renderTagSuggest();
+  }
+
+  // Small outline chips for a test's tags (Student tab rows, etc.).
+  function tagChips(t) {
+    return (t.tags || []).map((x) => `<span class="tag-chip">${escapeHtml(x)}</span>`).join(" ");
+  }
+
   // Recolors every test of the current test's type.
   function applyTypeColorEdit(color) {
     const t = getCurrentTest();
@@ -794,15 +998,17 @@
     persist();
   }
 
-  // The Setup-tab "Clear" button empties the selected test's name, type and roster.
+  // The Setup-tab "Clear" button empties the selected test's name, type, tags and roster.
   function clearSetupForm() {
     if (!getCurrentTest()) return;
-    if (students.length && !window.confirm("Clear this test's name, type and class list?")) return;
+    if (students.length && !window.confirm("Clear this test's name, subject, tags and class list?")) return;
     els.testName.value = "";
     els.testType.value = "";
+    els.testTags.value = "";
     els.classList.value = "";
     applyNameEdit();
     applyTypeEdit();
+    applyTagsEdit();
     applyClassListEdit();
     els.testName.focus();
   }
@@ -1080,9 +1286,14 @@
     els.gradeFoot.innerHTML = html;
   }
 
-  // A subject view whose type no longer exists falls back to the single test.
+  // Tests the Analysis tab works with: all, or only those with the chosen tag.
+  function analysisTests() {
+    return tests.filter((t) => tagFilterPasses(t, analysisTag, analysisTagInclude));
+  }
+
+  // A subject view with no (tag-matching) tests left falls back to the single test.
   function validateAnalysisMode() {
-    if (analysisMode.kind === "type" && !tests.some((t) => typeKeyOf(t) === analysisMode.key)) {
+    if (analysisMode.kind === "type" && !analysisTests().some((t) => typeKeyOf(t) === analysisMode.key)) {
       analysisMode = { kind: "test" };
     }
   }
@@ -1102,7 +1313,7 @@
 
   function updateAnalysisForTest() {
     // Single-test view: reset anything the subject view relabels.
-    els.analysisPanel.style.removeProperty("--test-accent");
+    setAccentVars(els.analysisPanel, null);
     els.hardestTitle.textContent = "Hardest questions";
     els.easiestTitle.textContent = "Easiest questions";
     syncTestTitle();
@@ -1272,15 +1483,16 @@
   // slots as the single-test view so the layout and Print PDF keep working.
   // -------------------------------------------------------------------------
   function updateAnalysisForType(key) {
-    const group = tests.filter((t) => typeKeyOf(t) === key).sort(byCreated);
+    const group = analysisTests().filter((t) => typeKeyOf(t) === key).sort(byCreated);
     const label = typeLabelOf(group[0]);
     const color = typeColorOf(group[0]);
     const sums = group.map((t) => ({ t: t, S: summarizeTest(t) }));
     const testName = (t) => t.name || "Untitled test";
 
-    els.analysisPanel.style.setProperty("--test-accent", color);
+    setAccentVars(els.analysisPanel, color);
     els.analysisTitle.innerHTML = `${escapeHtml(label)} ${typeChip(group[0], "title-chip")} ` +
-      `<span class="meta title-meta">${group.length} test${group.length !== 1 ? "s" : ""}</span>`;
+      `<span class="meta title-meta">${group.length} test${group.length !== 1 ? "s" : ""}` +
+      (analysisTag ? ` ·${escapeHtml(tagFilterNote(analysisTag, analysisTagInclude))}` : "") + `</span>`;
     els.hardestTitle.textContent = "Lowest-average tests";
     els.easiestTitle.textContent = "Highest-average tests";
 
@@ -1537,7 +1749,9 @@
     const H = Math.max(240, Math.min(340, Math.round(W * 0.55)));
     svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
     const n = points.length;
-    const ink = "#1f2733", lineColor = color || "#3b6cff";
+    // Trend line in a mid shade of the subject color, its label in the dark shade.
+    const ink = "#1f2733";
+    const lineColor = color ? shadeOf(color, 0.5) : "#3b6cff", labelColor = color ? inkOf(color) : "#3b6cff";
 
     // Test-name labels: wrap onto up to two lines; tilt only if they still can't fit.
     const NAME_FONT = 14, CHAR_W = NAME_FONT * 0.56;
@@ -1606,7 +1820,7 @@
       svg += `<line ${line} stroke="${lineColor}" stroke-width="2.5" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.85"/>`;
       svg += `<line ${line} stroke="transparent" stroke-width="12" data-tip="${escapeHtml(tip)}"/>`; // wide hover target
       const arrow = Math.abs(slope) < 0.05 ? "■" : slope > 0 ? "▲" : "▼";
-      svg += `<text x="${W - m.right}" y="17" text-anchor="end" font-size="14" font-weight="700" fill="${lineColor}">` +
+      svg += `<text x="${W - m.right}" y="17" text-anchor="end" font-size="14" font-weight="700" fill="${labelColor}">` +
         `${arrow} Trend: ${step}</text>`;
     } else {
       svg += `<text x="${W - m.right}" y="17" text-anchor="end" font-size="13" fill="#9aa3b2">` +
@@ -1707,7 +1921,7 @@
     const B = summarizeTest(tB);
 
     const side = (t, S) => {
-      const c = typeColorOf(t);
+      const c = typeInkOf(t);
       return `<span${c ? ` style="color:${c}"` : ""}>${escapeHtml(S.label)}</span> ${typeChip(t, "title-chip")}`;
     };
     els.compareTitle.innerHTML = `${side(tA, A)} <span class="cmp-arrow">→</span> ${side(tB, B)}`;
@@ -1962,16 +2176,19 @@
       .map((k) => `<option value="${escapeHtml(k)}">${escapeHtml(roster[k])}</option>`).join("");
     els.studentSelect.value = studentSelKey;
 
-    // Every test this student is on (first roster match per test).
+    // Every (tag-matching) test this student is on (first roster match per test).
+    // The student list itself always comes from all tests, so a pick never vanishes.
+    const pool = tests.filter((t) => tagFilterPasses(t, studentTag, studentTagInclude));
+    const tagNote = tagFilterNote(studentTag, studentTagInclude);
     const entries = [];
-    tests.forEach((t) => {
+    pool.forEach((t) => {
       const stu = t.students.find((s) => nameKey(s.name) === studentSelKey);
       if (stu) entries.push({ test: t, stu, stats: studentStats(stu), createdAt: t.createdAt });
     });
     const graded = entries.filter((e) => e.stats.attempted > 0);
 
     els.studentTitle.textContent = roster[studentSelKey];
-    els.studentMeta.textContent = `on ${entries.length} test${entries.length !== 1 ? "s" : ""}`;
+    els.studentMeta.textContent = `on ${entries.length} test${entries.length !== 1 ? "s" : ""}${tagNote}`;
 
     // ---- groups by type: A→Z, untyped last; oldest test first within a group ----
     const groups = {};
@@ -1991,7 +2208,7 @@
       groupInfo[k] = {
         list: list,
         color: k ? typeColorOf(list[0].test) : null,
-        label: k ? typeLabelOf(list[0].test) : "Untyped",
+        label: k ? typeLabelOf(list[0].test) : "No subject",
         graded: g.length,
         avg: g.length ? Math.round(g.reduce((a, e) => a + e.stats.pct, 0) / g.length) : null,
       };
@@ -2013,9 +2230,16 @@
     els.studentCards.innerHTML = groupKeys.map(typeAvgCard).concat([
       testCard(best, "Best test"),
       testCard(worst, "Lowest test"),
-      card(`${entries.length} <span class="num-sub">/ ${tests.length}</span>`, "Tests taken",
-        `On ${entries.length} of the ${tests.length} tests in the app`),
+      card(`${entries.length} <span class="num-sub">/ ${pool.length}</span>`, "Tests taken",
+        studentTag ? `On ${entries.length} of the ${pool.length} tests${tagNote}`
+          : `On ${entries.length} of the ${pool.length} tests in the app`),
     ]).join("");
+
+    if (!entries.length) {
+      els.studentGroups.innerHTML = `<p class="cmp-missing student-none">${escapeHtml(roster[studentSelKey])} ` +
+        `isn't on any tests${escapeHtml(tagNote)}.</p>`;
+      return;
+    }
 
     els.studentGroups.innerHTML = groupKeys.map((k) => {
       const { list, color, label, avg: gAvg } = groupInfo[k];
@@ -2028,7 +2252,7 @@
         const classAvg = summarizeTest(t).mean;
         return `<div class="student-test-row">` +
           `<div class="str-head">${typeChip(t)} <strong>${escapeHtml(t.name || "Untitled test")}</strong> ` +
-          `<span class="meta">${date} · ${t.numQuestions} question${t.numQuestions !== 1 ? "s" : ""}</span> ` +
+          `${tagChips(t)} <span class="meta">${date} · ${t.numQuestions} question${t.numQuestions !== 1 ? "s" : ""}</span> ` +
           `<span class="score-pill band-${scoreBand(s.pct)}">${s.attempted ? s.pct + "%" : "—"}</span> ` +
           `<span class="class-avg-chip" data-tip="Mean score of everyone graded on this test">` +
           `Class average: ${classAvg == null ? "—" : classAvg + "%"}</span>` +
@@ -2068,7 +2292,8 @@
     rows.push(["Test Name", (t && t.name ? t.name : "").trim()]);
     rows.push(["Questions", String(numQuestions)]);
     rows.push(["Created", t && t.createdAt != null ? new Date(t.createdAt).toISOString() : ""]);
-    rows.push(["Type", t ? (t.type || "").trim() : ""]);
+    rows.push(["Subject", t ? (t.type || "").trim() : ""]);
+    rows.push(["Tags", t ? (t.tags || []).join(", ") : ""]);
     rows.push([]); // spacer
 
     const header = ["Student"];
@@ -2165,7 +2390,7 @@
 
   function loadFromCsv(text) {
     const rows = parseCsv(text);
-    let name = "", metaN = null, headerIdx = -1, created = NaN, type = "";
+    let name = "", metaN = null, headerIdx = -1, created = NaN, type = "", tags = [];
 
     // Metadata rows only count above the "Student" header, so a student who
     // happens to be named e.g. "Created" isn't misread as metadata.
@@ -2175,7 +2400,8 @@
       if (key === "test name") name = (r[1] || "").trim();
       else if (key === "questions") metaN = parseInt(r[1], 10);
       else if (key === "created") created = Date.parse((r[1] || "").trim());
-      else if (key === "type") type = (r[1] || "").trim();
+      else if (key === "subject" || key === "type") type = (r[1] || "").trim(); // "Type" = older exports
+      else if (key === "tags") tags = parseTags(r[1]);
       else if (key === "student") headerIdx = idx;
     });
 
@@ -2208,6 +2434,7 @@
       id: genId(),
       name: name || "Imported test",
       type: type,
+      tags: tags,
       numQuestions: qCount,
       students: roster,
       createdAt: Number.isFinite(created) ? created : Date.now(),
@@ -2283,11 +2510,12 @@
 
       // Title + kicker: the test, or the subject (all tests of a type).
       const subject = analysisMode.kind === "type";
-      const subjectTests = subject ? tests.filter((t) => typeKeyOf(t) === analysisMode.key) : [];
+      const subjectTests = subject ? analysisTests().filter((t) => typeKeyOf(t) === analysisMode.key) : [];
       const subjectLabel = subject ? typeLabelOf(subjectTests[0]) || analysisMode.label : "";
       const curTest = getCurrentTest();
       const titleText = subject
-        ? `${subjectLabel} (${subjectTests.length} test${subjectTests.length !== 1 ? "s" : ""})`
+        ? `${subjectLabel} (${subjectTests.length} test${subjectTests.length !== 1 ? "s" : ""}` +
+          (analysisTag ? `, ${analysisTagInclude ? "tagged" : "not tagged"} "${tagLabel(analysisTag)}"` : "") + ")"
         : (curTest && curTest.name) || "Untitled test";
 
       // Header
